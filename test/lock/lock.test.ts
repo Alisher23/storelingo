@@ -62,6 +62,17 @@ describe("loadLock / saveLock", () => {
     expect((await loadLock(file)).entries["play/ru-RU/title"]).toEqual(entry);
   });
 
+  it("strips a UTF-8 BOM when reading", async () => {
+    const dir = await makeTmpDir();
+    const file = join(dir, LOCK_FILE);
+    await writeFile(
+      file,
+      `\uFEFF${JSON.stringify({ version: 1, entries: { "play/ru-RU/title": entry } })}`,
+      "utf8",
+    );
+    expect((await loadLock(file)).entries["play/ru-RU/title"]).toEqual(entry);
+  });
+
   it("rejects a corrupt lock file", async () => {
     const dir = await makeTmpDir();
     const file = join(dir, LOCK_FILE);

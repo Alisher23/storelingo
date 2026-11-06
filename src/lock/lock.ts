@@ -39,7 +39,7 @@ export async function loadLock(file: string): Promise<Lock> {
   }
   let raw: unknown;
   try {
-    raw = JSON.parse(text);
+    raw = JSON.parse(text.replace(/^\uFEFF/, ""));
   } catch {
     raw = undefined;
   }
