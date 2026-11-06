@@ -13,3 +13,8 @@
 - push: possible double abort (harmless); shared `yes` mock; the E_IN_REVIEW test does not assert that updates were sent.
 - CLI coverage gaps: invalid --store, appstore info line, pull --force, deps.confirm yes, CLI-level E_AUTH_PLAY/E_STORE; the default-store notice is undocumented.
 - npm audit: 9 moderate issues, in dev dependencies only.
+
+## Noted at the final re-review
+- Diff window is cut by code point, so it can split grapheme clusters (ZWJ emoji, combining marks); display only.
+- Inline STORELINGO_PLAY_SERVICE_ACCOUNT JSON is masked only as a whole string; a fragment quoted in an error would not be masked (no error quotes the key today).
+- push now treats a non-TTY stdout as non-interactive (e.g. `storelingo push | tee` needs --yes); add a CHANGELOG line.
