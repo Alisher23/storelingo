@@ -1,13 +1,22 @@
+import { confirm as promptConfirm } from "@inquirer/prompts";
 import { Command, CommanderError } from "commander";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import { runCheck } from "../commands/check.js";
+import { STORE_NAMES, runCheck } from "../commands/check.js";
 import { promptInitAnswers, writeInitFiles, type InitAnswers } from "../commands/init.js";
+import { runPull } from "../commands/pull.js";
+import { runPush } from "../commands/push.js";
 import { runTranslate } from "../commands/translate.js";
 import { CONFIG_FILE, loadConfig } from "../config/load.js";
 import type { Config } from "../config/schema.js";
 import { ExitCode, StorelingoError, exitCodeFor } from "../errors.js";
+import type { StoreId } from "../fields/registry.js";
 import { createLogger, type Logger } from "../log.js";
 import { createTranslator } from "../translate/engine.js";
+import { createTokenProvider, loadServiceAccount } from "../stores/google-play/auth.js";
+import { createPlayApi } from "../stores/google-play/client.js";
+import { createPlayStore } from "../stores/google-play/store.js";
+import type { StoreClient } from "../stores/types.js";
 import { createLlmClient } from "../translate/providers/index.js";
 import type { Translator } from "../translate/types.js";
 
@@ -18,6 +27,9 @@ export interface CliDeps {
   err: (line: string) => void;
   makeTranslator?: (config: Config, env: NodeJS.ProcessEnv) => Translator;
   promptInit?: () => Promise<InitAnswers>;
+  makeStore?: (store: StoreId, config: Config, env: NodeJS.ProcessEnv) => Promise<StoreClient>;
+  confirm?: (message: string) => Promise<boolean>;
+  isTTY?: boolean;
 }
 
 const defaultDeps = (): CliDeps => ({
@@ -29,6 +41,39 @@ const defaultDeps = (): CliDeps => ({
 
 const defaultTranslator = (config: Config, env: NodeJS.ProcessEnv): Translator =>
   createTranslator(createLlmClient(config.translator, env));
+
+const pkg = createRequire(import.meta.url)("../../package.json") as { version: string };
+
+const defaultMakeStore = async (store: StoreId, config: Config, env: NodeJS.ProcessEnv): Promise<StoreClient> => {
+  if (store !== "play" || !config.stores.play) {
+    throw new StorelingoError("E_USAGE", `store ${store} is not supported yet`);
+  }
+  const account = await loadServiceAccount(env);
+  const tokens = createTokenProvider({ account });
+  const api = createPlayApi({ packageName: config.stores.play.packageName, getToken: () => tokens.getToken() });
+  return createPlayStore(api);
+};
+
+/** v0.2 supports Google Play only; validated before any network call. */
+function selectStore(option: string | undefined, config: Config, log: Logger): StoreId {
+  if (option === "appstore") {
+    throw new StorelingoError("E_USAGE", "App Store pull/push arrives in v0.3", "Use --store play (the default).");
+  }
+  if (option !== undefined && option !== "play") {
+    throw new StorelingoError("E_USAGE", `--store must be play or appstore, got ${JSON.stringify(option)}`);
+  }
+  if (!config.stores.play) {
+    throw new StorelingoError(
+      "E_CONFIG",
+      "stores.play is not configured",
+      "Add stores.play.packageName to storelingo.config.json.",
+    );
+  }
+  if (option === undefined && config.stores.appstore) {
+    log.info("App Store pull/push is not supported yet (planned for v0.3); using Google Play only.");
+  }
+  return "play";
+}
 
 interface GlobalOpts {
   config?: string;
@@ -58,7 +103,7 @@ export async function main(argv: string[], deps: CliDeps = defaultDeps()): Promi
   program
     .name("storelingo")
     .description("AI localization for Google Play and App Store listings (fastlane metadata).")
-    .version("0.1.0")
+    .version(pkg.version)
     .option("--config <path>", `path to the config file (default: ${CONFIG_FILE})`)
     .option("--verbose", "print debug output")
     .option("--no-color", "disable colors")
@@ -127,6 +172,77 @@ export async function main(argv: string[], deps: CliDeps = defaultDeps()): Promi
           `Tokens: ${report.usage.inputTokens} in / ${report.usage.outputTokens} out.`,
       );
       if (report.failed.length > 0) exitCode = ExitCode.FAILED;
+    });
+
+  program
+    .command("pull")
+    .description("download the current store listings into the fastlane folders")
+    .option("--store <store>", "store to pull from (play)")
+    .option("--force", "overwrite local files that differ from the store")
+    .action(async (opts: { store?: string; force?: boolean }) => {
+      const log = logger();
+      const config = await loadConfig(configPath());
+      const store = selectStore(opts.store, config, log);
+      const client = await (deps.makeStore ?? defaultMakeStore)(store, config, deps.env);
+      const report = await runPull({ config, cwd: deps.cwd, client, log, force: opts.force });
+      log.info(
+        `Pulled from ${STORE_NAMES[store]}: wrote ${report.written}, unchanged ${report.unchanged}, ` +
+          `kept ${report.skipped.length} different local file(s) (use --force to overwrite).`,
+      );
+      for (const path of report.skipped) log.info(`  kept ${path}`);
+    });
+
+  program
+    .command("push")
+    .description("show the diff with the live listing and upload after confirmation")
+    .option("--store <store>", "store to push to (play)")
+    .option("--dry-run", "only show the diff")
+    .option("--yes", "do not ask for confirmation (required outside a terminal)")
+    .action(async (opts: { store?: string; dryRun?: boolean; yes?: boolean }) => {
+      const log = logger();
+      const config = await loadConfig(configPath());
+      const store = selectStore(opts.store, config, log);
+      const message = `Upload these changes to ${STORE_NAMES[store]}?`;
+      const isTTY = deps.isTTY ?? process.stdin.isTTY === true;
+      let ask: (summary: string[]) => Promise<boolean>;
+      if (opts.yes) {
+        ask = async () => true;
+      } else if (deps.confirm) {
+        const confirmFn = deps.confirm;
+        ask = async () => confirmFn(message);
+      } else if (isTTY) {
+        ask = async () => promptConfirm({ message, default: false });
+      } else if (opts.dryRun) {
+        ask = async () => false;
+      } else {
+        throw new StorelingoError(
+          "E_USAGE",
+          "push needs --yes when not running in an interactive terminal (or use --dry-run)",
+        );
+      }
+      const client = await (deps.makeStore ?? defaultMakeStore)(store, config, deps.env);
+      const report = await runPush({ config, cwd: deps.cwd, client, log, dryRun: opts.dryRun, confirm: ask });
+      switch (report.status) {
+        case "pushed":
+          log.info(
+            `Pushed ${report.locales.length} listing(s) to ${STORE_NAMES[store]}: ${report.locales.join(", ")}. ` +
+              "Google reviews listing changes before they go live.",
+          );
+          break;
+        case "dry-run":
+          log.info("Dry run: nothing was changed.");
+          break;
+        case "cancelled":
+          log.info("Cancelled: nothing was changed.");
+          break;
+        case "blocked":
+          for (const p of report.problems) log.error(p);
+          log.error("Push blocked: fix the problems above (nothing was changed).");
+          exitCode = ExitCode.FAILED;
+          break;
+        case "nothing":
+          break;
+      }
     });
 
   try {
