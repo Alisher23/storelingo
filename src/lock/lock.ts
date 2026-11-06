@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { StorelingoError } from "../errors.js";
 import type { StoreId } from "../fields/registry.js";
@@ -60,7 +60,9 @@ export async function saveLock(file: string, lock: Lock): Promise<void> {
       .sort()
       .map((k) => [k, lock.entries[k]]),
   );
-  await writeFile(file, `${JSON.stringify({ version: 1, entries }, null, 2)}\n`, "utf8");
+  const tmp = `${file}.tmp`;
+  await writeFile(tmp, `${JSON.stringify({ version: 1, entries }, null, 2)}\n`, "utf8");
+  await rename(tmp, file);
 }
 
 export type Decision = "translate" | "skip-empty-source" | "skip-unchanged" | "skip-manual-edit";

@@ -1,4 +1,4 @@
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { LOCK_FILE, decide, hashText, loadLock, lockKey, saveLock } from "../../src/lock/lock.js";
@@ -62,11 +62,21 @@ describe("loadLock / saveLock", () => {
     expect((await loadLock(file)).entries["play/ru-RU/title"]).toEqual(entry);
   });
 
-  it("saves atomically and leaves no temp file behind", async () => {
+  it("leaves no temp file after a successful save", async () => {
     const dir = await makeTmpDir();
     const file = join(dir, LOCK_FILE);
     await saveLock(file, { version: 1, entries: { "play/ru-RU/title": entry } });
-    expect(await readdir(dir)).toEqual([LOCK_FILE]);
+    await expect(stat(`${file}.tmp`)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("keeps the previous lock intact when the save fails midway", async () => {
+    const dir = await makeTmpDir();
+    const file = join(dir, LOCK_FILE);
+    await saveLock(file, { version: 1, entries: { "play/ru-RU/title": entry } });
+    const before = await readFile(file, "utf8");
+    await mkdir(`${file}.tmp`); // temp path unusable, so the write step fails
+    await expect(saveLock(file, { version: 1, entries: { "play/de-DE/title": entry } })).rejects.toThrow();
+    expect(await readFile(file, "utf8")).toBe(before);
   });
 
   it("strips a UTF-8 BOM when reading", async () => {
