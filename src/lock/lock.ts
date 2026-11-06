@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { lstat, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { StorelingoError } from "../errors.js";
 import type { StoreId } from "../fields/registry.js";
@@ -29,7 +29,26 @@ export function lockKey(store: StoreId, storeLocale: string, fieldKey: string): 
   return `${store}/${storeLocale}/${fieldKey}`;
 }
 
+/** The lock file may come from someone else's repository: never read or write through a symlink. */
+async function assertNotSymlink(file: string): Promise<void> {
+  let isLink: boolean;
+  try {
+    isLink = (await lstat(file)).isSymbolicLink();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw err;
+  }
+  if (isLink) {
+    throw new StorelingoError(
+      "E_CONFIG",
+      `refusing to follow symlink: ${LOCK_FILE}`,
+      `Replace ${LOCK_FILE} with a regular file.`,
+    );
+  }
+}
+
 export async function loadLock(file: string): Promise<Lock> {
+  await assertNotSymlink(file);
   let text: string;
   try {
     text = await readFile(file, "utf8");
@@ -60,9 +79,16 @@ export async function saveLock(file: string, lock: Lock): Promise<void> {
       .sort()
       .map((k) => [k, lock.entries[k]]),
   );
-  const tmp = `${file}.tmp`;
-  await writeFile(tmp, `${JSON.stringify({ version: 1, entries }, null, 2)}\n`, "utf8");
-  await rename(tmp, file);
+  await assertNotSymlink(file);
+  // Unpredictable name + exclusive create: a file or symlink planted at the temp path is never written through.
+  const tmp = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(tmp, `${JSON.stringify({ version: 1, entries }, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    await rename(tmp, file);
+  } catch (err) {
+    await rm(tmp, { force: true });
+    throw err;
+  }
 }
 
 export type Decision = "translate" | "skip-empty-source" | "skip-unchanged" | "skip-manual-edit";

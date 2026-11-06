@@ -5,7 +5,7 @@ import { fieldsFor, type StoreId } from "../fields/registry.js";
 import { findLocale, toStoreLocale, type LocaleDef } from "../locales/table.js";
 import { LOCK_FILE, decide, hashText, loadLock, lockKey, saveLock } from "../lock/lock.js";
 import type { Logger } from "../log.js";
-import { readField, resolveFieldPath, storeRoot, writeField } from "../metadata/fastlane.js";
+import { readField, resolveFieldPath, storeRoot, writeField, type StoreRoot } from "../metadata/fastlane.js";
 import { ZERO_USAGE, addUsage, type FieldToTranslate, type Translator, type Usage } from "../translate/types.js";
 import { runPool } from "../util/pool.js";
 import { STORE_NAMES, configuredStores } from "./check.js";
@@ -43,7 +43,7 @@ interface PendingField extends FieldToTranslate {
 
 interface Job {
   store: StoreId;
-  root: string;
+  root: StoreRoot;
   storeLocale: string;
   target: LocaleDef;
   fields: PendingField[];

@@ -15,25 +15,40 @@ function parseBaseUrl(baseUrl: string): URL {
 }
 
 /**
- * Picks the API key for an OpenAI-compatible baseUrl so an untrusted config file cannot
- * redirect a credential to a third-party host:
+ * Decides whether an OpenAI-compatible baseUrl may be used and which API key it gets, so an
+ * untrusted config file can neither redirect a credential nor send texts to an arbitrary server:
  * - api.openai.com: OPENAI_API_KEY (and only there).
- * - any other host: no key unless STORELINGO_TRANSLATOR_API_KEY is set. When it is set,
- *   it is sent only if the baseUrl hostname equals STORELINGO_TRANSLATOR_API_HOST
- *   (compared lowercased and trimmed); otherwise this throws E_CONFIG.
- * OPENAI_API_KEY and STORELINGO_TRANSLATOR_API_KEY never fall back to one another.
+ * - loopback (localhost, 127.0.0.1, [::1]): allowed; no key unless STORELINGO_TRANSLATOR_API_KEY
+ *   is set and STORELINGO_TRANSLATOR_API_HOST names that host.
+ * - any other host: STORELINGO_TRANSLATOR_API_HOST must equal the baseUrl hostname (compared
+ *   lowercased and trimmed) even when no key is set; STORELINGO_TRANSLATOR_API_KEY is sent there.
+ * Anything else throws E_CONFIG. OPENAI_API_KEY and STORELINGO_TRANSLATOR_API_KEY never fall back
+ * to one another.
  */
 export function resolveOpenAiKey(baseUrl: string, env: NodeJS.ProcessEnv): string | undefined {
   const host = parseBaseUrl(baseUrl).hostname;
   if (host === "api.openai.com") return env.OPENAI_API_KEY;
 
+  const allowedHost = env.STORELINGO_TRANSLATOR_API_HOST?.trim().toLowerCase();
+  const hostAllowed = host !== "" && allowedHost === host;
+  const hint = host
+    ? `Set STORELINGO_TRANSLATOR_API_HOST=${host} to allow it (current baseUrl host: ${host}).`
+    : "translator.baseUrl must name a host.";
+  if (!hostAllowed && !LOOPBACK_HOSTS.has(host)) {
+    throw new StorelingoError(
+      "E_CONFIG",
+      "translator.baseUrl points to a host that STORELINGO_TRANSLATOR_API_HOST does not allow",
+      hint,
+    );
+  }
+
   const key = env.STORELINGO_TRANSLATOR_API_KEY;
   if (!key) return undefined;
-  if (env.STORELINGO_TRANSLATOR_API_HOST?.trim().toLowerCase() === host) return key;
+  if (hostAllowed) return key;
   throw new StorelingoError(
     "E_CONFIG",
     "STORELINGO_TRANSLATOR_API_KEY is only sent to the host named in STORELINGO_TRANSLATOR_API_HOST",
-    `Set STORELINGO_TRANSLATOR_API_HOST=${host} to allow it (current baseUrl host: ${host}).`,
+    hint,
   );
 }
 
@@ -50,7 +65,8 @@ export function createLlmClient(t: TranslatorConfig, env: NodeJS.ProcessEnv): Ll
     return createAnthropicLlm({ apiKey, model: t.model, effort: t.effort });
   }
   const url = parseBaseUrl(t.baseUrl);
-  if (url.protocol === "http:" && !LOOPBACK_HOSTS.has(url.hostname)) {
+  const httpOk = url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname);
+  if (url.protocol !== "https:" && !httpOk) {
     throw new StorelingoError(
       "E_CONFIG",
       "translator.baseUrl must use https for non-local hosts",

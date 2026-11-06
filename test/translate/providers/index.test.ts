@@ -28,6 +28,32 @@ describe("createLlmClient", () => {
     ).toThrowError(expect.objectContaining({ code: "E_CONFIG" }));
   });
 
+  it("rejects non-http(s) protocols such as data: and file:", () => {
+    for (const baseUrl of ["data:text/plain,x", "file:///etc/passwd", "ftp://localhost/v1"]) {
+      expect(() =>
+        createLlmClient({ provider: "openai-compatible", baseUrl, model: "m", concurrency: 4 }, {}),
+      ).toThrowError(expect.objectContaining({ code: "E_CONFIG" }));
+    }
+  });
+
+  it("requires STORELINGO_TRANSLATOR_API_HOST for a remote host other than api.openai.com, even without a key", () => {
+    const t = { provider: "openai-compatible" as const, baseUrl: "https://evil.example/v1", model: "m", concurrency: 4 };
+    expect(() => createLlmClient(t, {})).toThrowError(expect.objectContaining({ code: "E_CONFIG" }));
+    expect(() => createLlmClient(t, { STORELINGO_TRANSLATOR_API_HOST: "good.example" })).toThrowError(
+      expect.objectContaining({ code: "E_CONFIG" }),
+    );
+    expect(createLlmClient(t, { STORELINGO_TRANSLATOR_API_HOST: "evil.example" })).toHaveProperty("completeJson");
+  });
+
+  it("needs no host var for api.openai.com", () => {
+    expect(
+      createLlmClient(
+        { provider: "openai-compatible", baseUrl: "https://api.openai.com/v1", model: "m", concurrency: 4 },
+        {},
+      ),
+    ).toHaveProperty("completeJson");
+  });
+
   it("allows http for loopback hosts", () => {
     for (const baseUrl of ["http://127.0.0.1:1234/v1", "http://[::1]:1234/v1"]) {
       expect(
@@ -43,7 +69,19 @@ describe("resolveOpenAiKey", () => {
     expect(resolveOpenAiKey("https://api.openai.com/v1", env)).toBe("sk-openai");
   });
   it("never sends OPENAI_API_KEY to other hosts", () => {
-    expect(resolveOpenAiKey("https://openrouter.ai/api/v1", { OPENAI_API_KEY: "sk-openai" })).toBeUndefined();
+    const allowed = { OPENAI_API_KEY: "sk-openai", STORELINGO_TRANSLATOR_API_HOST: "openrouter.ai" };
+    expect(resolveOpenAiKey("https://openrouter.ai/api/v1", allowed)).toBeUndefined();
+  });
+  it("throws E_CONFIG for a remote host without STORELINGO_TRANSLATOR_API_HOST, even with no key", () => {
+    expect(() => resolveOpenAiKey("https://openrouter.ai/api/v1", {})).toThrowError(
+      expect.objectContaining({ code: "E_CONFIG" }),
+    );
+  });
+  it("never returns the key for a hostless URL, even with an empty host var", () => {
+    const empty = { STORELINGO_TRANSLATOR_API_KEY: "sk-other", STORELINGO_TRANSLATOR_API_HOST: "" };
+    expect(() => resolveOpenAiKey("file:///etc/passwd", empty)).toThrowError(
+      expect.objectContaining({ code: "E_CONFIG" }),
+    );
   });
   it("sends STORELINGO_TRANSLATOR_API_KEY when the host var matches", () => {
     const withHost = { ...env, STORELINGO_TRANSLATOR_API_HOST: "openrouter.ai" };

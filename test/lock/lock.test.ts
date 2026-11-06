@@ -1,8 +1,8 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { LOCK_FILE, decide, hashText, loadLock, lockKey, saveLock } from "../../src/lock/lock.js";
-import { makeTmpDir } from "../helpers/tmp.js";
+import { makeTmpDir, trySymlink } from "../helpers/tmp.js";
 
 const src = "Hello";
 const out = "Привет";
@@ -66,17 +66,49 @@ describe("loadLock / saveLock", () => {
     const dir = await makeTmpDir();
     const file = join(dir, LOCK_FILE);
     await saveLock(file, { version: 1, entries: { "play/ru-RU/title": entry } });
-    await expect(stat(`${file}.tmp`)).rejects.toMatchObject({ code: "ENOENT" });
+    await saveLock(file, { version: 1, entries: { "play/de-DE/title": entry } });
+    expect(await readdir(dir)).toEqual([LOCK_FILE]);
   });
 
-  it("keeps the previous lock intact when the save fails midway", async () => {
+  it("removes its temp file when the final rename fails", async () => {
     const dir = await makeTmpDir();
     const file = join(dir, LOCK_FILE);
-    await saveLock(file, { version: 1, entries: { "play/ru-RU/title": entry } });
-    const before = await readFile(file, "utf8");
-    await mkdir(`${file}.tmp`); // temp path unusable, so the write step fails
+    await mkdir(file); // a directory at the lock path: the temp write succeeds, the rename fails
     await expect(saveLock(file, { version: 1, entries: { "play/de-DE/title": entry } })).rejects.toThrow();
-    expect(await readFile(file, "utf8")).toBe(before);
+    expect(await readdir(dir)).toEqual([LOCK_FILE]);
+  });
+
+  it("refuses to save through a symlinked lock path and leaves its target untouched", async () => {
+    const dir = await makeTmpDir();
+    const outside = await makeTmpDir();
+    await writeFile(join(outside, "keep.txt"), "keep");
+    const file = join(dir, LOCK_FILE);
+    await trySymlink(outside, file, "junction");
+    await expect(saveLock(file, { version: 1, entries: { "play/de-DE/title": entry } })).rejects.toMatchObject({
+      code: "E_CONFIG",
+    });
+    expect(await readdir(outside)).toEqual(["keep.txt"]);
+    expect(await readdir(dir)).toEqual([LOCK_FILE]);
+  });
+
+  it("refuses to overwrite a file the lock path links to", async ({ skip }) => {
+    const dir = await makeTmpDir();
+    const outside = await makeTmpDir();
+    const victim = join(outside, "config");
+    await writeFile(victim, "[core]\n");
+    const file = join(dir, LOCK_FILE);
+    if (!(await trySymlink(victim, file, "file"))) skip("symlinks are not permitted on this host");
+    await expect(saveLock(file, { version: 1, entries: {} })).rejects.toMatchObject({ code: "E_CONFIG" });
+    await expect(loadLock(file)).rejects.toMatchObject({ code: "E_CONFIG" });
+    expect(await readFile(victim, "utf8")).toBe("[core]\n");
+  });
+
+  it("refuses to read a symlinked lock path", async () => {
+    const dir = await makeTmpDir();
+    const outside = await makeTmpDir();
+    const file = join(dir, LOCK_FILE);
+    await trySymlink(outside, file, "junction");
+    await expect(loadLock(file)).rejects.toMatchObject({ code: "E_CONFIG", message: expect.stringContaining("symlink") });
   });
 
   it("strips a UTF-8 BOM when reading", async () => {

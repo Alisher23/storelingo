@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { runTranslate } from "../../src/commands/translate.js";
@@ -7,6 +7,7 @@ import { LOCK_FILE, loadLock } from "../../src/lock/lock.js";
 import { StorelingoError } from "../../src/errors.js";
 import type { TranslateRequest, Translator } from "../../src/translate/types.js";
 import { makeProject } from "../helpers/project.js";
+import { makeTmpDir, trySymlink } from "../helpers/tmp.js";
 
 const P = "fastlane/metadata/android";
 const config = {
@@ -127,6 +128,16 @@ describe("runTranslate", () => {
     expect(report.failed).toEqual([
       { store: "play", locale: "ru-RU", field: "title", message: "40 characters, limit is 30" },
     ]);
+  });
+
+  it("refuses a symlinked target locale folder planted in the repository", async () => {
+    const { cwd, config: cfg } = await makeProject(files, config);
+    const outside = await makeTmpDir();
+    await trySymlink(outside, join(cwd, P, "ru-RU"), "junction");
+    await expect(runTranslate({ config: cfg, cwd, translator: fakeTranslator().translator, log: silent })).rejects.toMatchObject({
+      code: "E_CONFIG",
+    });
+    expect(await readdir(outside)).toEqual([]);
   });
 
   it("survives a write failure: records it, keeps other fields and persists their lock entries", async () => {
