@@ -114,4 +114,55 @@ describe("createPlayApi", () => {
     await api(fetchImpl).updateListing("e/1", { language: "../x" });
     expect(fetchImpl.mock.calls[0]![0]).toBe(`${BASE}/edits/e%2F1/listings/..%2Fx`);
   });
+
+  it("retries when the response body fails mid-read", async () => {
+    const broken = () =>
+      new Response(new ReadableStream({ start(c) { c.error(new Error("reset")); } }), { status: 200 });
+    const fetchImpl = vi.fn().mockResolvedValueOnce(broken()).mockResolvedValueOnce(json(200, { id: "e4" }));
+    expect(await api(fetchImpl).insertEdit()).toBe("e4");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry commit: a 503 becomes E_STORE with unknown status", async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () => json(503, {}));
+    await expect(api(fetchImpl).commitEdit("e1")).rejects.toMatchObject({
+      code: "E_STORE",
+      message: expect.stringContaining("status is unknown"),
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects empty, dot and dot-dot path segments before any request", async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () => json(200, {}));
+    const a = api(fetchImpl);
+    await expect(a.updateListing("e1", { language: ".." })).rejects.toMatchObject({
+      code: "E_STORE",
+      message: "invalid Google Play path segment",
+    });
+    await expect(a.listListings("")).rejects.toMatchObject({ code: "E_STORE" });
+    await expect(a.listListings(".")).rejects.toMatchObject({ code: "E_STORE" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(() =>
+      createPlayApi({ packageName: "..", getToken: async () => "tok-123", fetchImpl, sleep: async () => {} }),
+    ).toThrow(expect.objectContaining({ code: "E_STORE" }));
+  });
+
+  it("redacts the bearer token from error messages", async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () =>
+      json(400, { error: { code: 400, message: "Bad credential tok-123 here" } }));
+    const err = await api(fetchImpl).insertEdit().catch((e) => e);
+    expect(err.message).toContain("***");
+    expect(err.message).not.toContain("tok-123");
+  });
+
+  it("honours a numeric retry-after on 429", async () => {
+    const sleep = vi.fn(async () => {});
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("", { status: 429, headers: { "retry-after": "2" } }))
+      .mockResolvedValueOnce(json(200, { id: "e5" }));
+    const a = createPlayApi({ packageName: "com.example.app", getToken: async () => "tok-123", fetchImpl, sleep });
+    expect(await a.insertEdit()).toBe("e5");
+    expect(sleep).toHaveBeenCalledWith(2000);
+  });
 });

@@ -24,14 +24,37 @@ interface GoogleErrorBody {
   error?: { code?: number; message?: string; status?: string; details?: { reason?: string }[] };
 }
 
-function toError(status: number, text: string, packageName: string): StorelingoError {
+const COMMIT_UNKNOWN_HINT =
+  "Check the listing in Play Console, or run `storelingo push --dry-run` to see whether the changes went through.";
+
+/** Replaces every occurrence of the bearer token so it never reaches an error message. */
+function scrub(text: string, token: string): string {
+  return token ? text.split(token).join("***") : text;
+}
+
+/** Validates a URL path segment before it is encoded; rejects empty, "." and "..". */
+function segment(value: string): string {
+  if (value === "" || value === "." || value === "..") {
+    throw new StorelingoError("E_STORE", "invalid Google Play path segment");
+  }
+  return encodeURIComponent(value);
+}
+
+/** Parses a numeric Retry-After header (seconds) into milliseconds. */
+function retryAfterMs(res: Response): number | undefined {
+  const raw = res.headers.get("retry-after")?.trim();
+  if (!raw || !/^\d+$/.test(raw)) return undefined;
+  return Number(raw) * 1000;
+}
+
+function toError(status: number, text: string, packageName: string, token: string): StorelingoError {
   let parsed: GoogleErrorBody = {};
   try {
     parsed = JSON.parse(text) as GoogleErrorBody;
   } catch {
     // not JSON: fall back to the raw text
   }
-  const message = (parsed.error?.message ?? text).slice(0, 500);
+  const message = scrub(parsed.error?.message ?? text, token).slice(0, 500);
   if (parsed.error?.details?.some((d) => d.reason === "CHANGES_ALREADY_IN_REVIEW")) {
     return new StorelingoError(
       "E_IN_REVIEW",
@@ -64,39 +87,46 @@ export function createPlayApi(opts: {
   sleep?: (ms: number) => Promise<void>;
 }): PlayApi {
   const fetchImpl = opts.fetchImpl ?? fetch;
-  const app = `${PLAY_API_BASE}/${encodeURIComponent(opts.packageName)}`;
-  const edit = (id: string) => `${app}/edits/${encodeURIComponent(id)}`;
+  const app = `${PLAY_API_BASE}/${segment(opts.packageName)}`;
+  const edit = (id: string) => `${app}/edits/${segment(id)}`;
 
-  async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
-    return withRetry(
-      async () => {
-        const token = await opts.getToken();
-        const headers: Record<string, string> = { authorization: `Bearer ${token}` };
-        if (body !== undefined) headers["content-type"] = "application/json";
-        let res: Response;
-        try {
-          res = await fetchImpl(url, {
-            method,
-            headers,
-            body: body === undefined ? undefined : JSON.stringify(body),
-            redirect: "error",
-            signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
-          });
-        } catch (err) {
-          throw new RetryableError(`Network error: ${err instanceof Error ? err.message : String(err)}`);
-        }
-        if (res.status === 429 || res.status >= 500) throw new RetryableError(`HTTP ${res.status}`);
-        const text = await res.text();
-        if (!res.ok) throw toError(res.status, text, opts.packageName);
-        if (!text) return {} as T;
-        try {
-          return JSON.parse(text) as T;
-        } catch {
-          throw new StorelingoError("E_STORE", `Google Play returned a non-JSON response (${res.status})`);
-        }
-      },
-      { sleep: opts.sleep },
-    ).catch((err: unknown) => {
+  async function request<T>(
+    method: string,
+    url: string,
+    body?: unknown,
+    { retry = true }: { retry?: boolean } = {},
+  ): Promise<T> {
+    const attempt = async (): Promise<T> => {
+      const token = await opts.getToken();
+      const headers: Record<string, string> = { authorization: `Bearer ${token}` };
+      if (body !== undefined) headers["content-type"] = "application/json";
+      let res: Response;
+      let text: string;
+      try {
+        res = await fetchImpl(url, {
+          method,
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
+          redirect: "error",
+          signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
+        });
+        text = await res.text();
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        throw new RetryableError(`Network error: ${scrub(reason, token)}`);
+      }
+      if (res.status === 429) throw new RetryableError("HTTP 429", retryAfterMs(res));
+      if (res.status >= 500) throw new RetryableError(`HTTP ${res.status}`);
+      if (!res.ok) throw toError(res.status, text, opts.packageName, token);
+      if (!text) return {} as T;
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        throw new StorelingoError("E_STORE", `Google Play returned a non-JSON response (${res.status})`);
+      }
+    };
+    if (!retry) return attempt();
+    return withRetry(attempt, { sleep: opts.sleep }).catch((err: unknown) => {
       if (err instanceof RetryableError) {
         throw new StorelingoError("E_STORE", `Google Play API kept failing: ${err.message}`);
       }
@@ -115,13 +145,22 @@ export function createPlayApi(opts: {
       return res.listings ?? [];
     },
     async updateListing(editId, listing) {
-      await request("PUT", `${edit(editId)}/listings/${encodeURIComponent(listing.language)}`, listing);
+      await request("PUT", `${edit(editId)}/listings/${segment(listing.language)}`, listing);
     },
     async validateEdit(editId) {
       await request("POST", `${edit(editId)}:validate`);
     },
     async commitEdit(editId) {
-      await request("POST", `${edit(editId)}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW`);
+      try {
+        await request("POST", `${edit(editId)}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW`, undefined, {
+          retry: false,
+        });
+      } catch (err) {
+        if (err instanceof RetryableError) {
+          throw new StorelingoError("E_STORE", `Google Play commit status is unknown (${err.message})`, COMMIT_UNKNOWN_HINT);
+        }
+        throw err;
+      }
     },
     async deleteEdit(editId) {
       await request("DELETE", edit(editId));
