@@ -40,6 +40,13 @@ describe("storeRoot", () => {
     const custom = { ...config, paths: { play: "meta/play" } };
     expect(storeRoot(custom, "/p", "play").root).toBe(resolve("/p", "meta/play"));
   });
+
+  it("rejects a root outside the project even if the schema was bypassed", () => {
+    for (const play of ["../x", resolve("/elsewhere")]) {
+      const custom = { ...config, paths: { play } };
+      expect(() => storeRoot(custom, "/p", "play"), play).toThrowError(expect.objectContaining({ code: "E_CONFIG" }));
+    }
+  });
 });
 
 describe("listLocales", () => {

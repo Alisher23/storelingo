@@ -53,6 +53,20 @@ describe("parseConfig", () => {
     expect(() => parseConfig({ ...minimal, targetLocales: ["en-US"] })).toThrow("source locale");
   });
 
+  it("rejects metadata paths that leave the project", () => {
+    for (const p of ["../x", "a/../../x", "/x", "C:\\x", "C:x", "\\\\server\\share"]) {
+      expect(() => parseConfig({ ...minimal, paths: { play: p } }), p).toThrowError(
+        expect.objectContaining({ code: "E_CONFIG", message: expect.stringContaining("paths.play") }),
+      );
+    }
+    expect(() => parseConfig({ ...minimal, paths: { appstore: "..\\x" } })).toThrow("paths.appstore");
+  });
+
+  it("accepts metadata paths inside the project", () => {
+    const config = parseConfig({ ...minimal, paths: { play: "meta/play", appstore: "./ios/../meta" } });
+    expect(config.paths).toEqual({ play: "meta/play", appstore: "./ios/../meta" });
+  });
+
   it("reports the path of an invalid field", () => {
     expect(() => parseConfig({ ...minimal, translator: { provider: "anthropic", concurrency: 0 } })).toThrow(
       "translator.concurrency",

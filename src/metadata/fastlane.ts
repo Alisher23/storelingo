@@ -25,7 +25,15 @@ export interface StoreRoot {
 
 export function storeRoot(config: Config, cwd: string, store: StoreId): StoreRoot {
   const projectRoot = resolve(cwd);
-  return { projectRoot, root: resolve(projectRoot, config.paths[store] ?? DEFAULT_ROOTS[store]) };
+  const root = resolve(projectRoot, config.paths[store] ?? DEFAULT_ROOTS[store]);
+  if (!isInsideProject(projectRoot, root)) {
+    throw new StorelingoError(
+      "E_CONFIG",
+      `paths.${store} points outside the project: ${config.paths[store]}`,
+      "Use a path relative to the current directory, without \"..\".",
+    );
+  }
+  return { projectRoot, root };
 }
 
 function isNotFound(err: unknown): boolean {

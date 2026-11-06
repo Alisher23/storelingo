@@ -1,4 +1,16 @@
+import { posix, win32 } from "node:path";
 import { z } from "zod";
+
+/** A relative path that stays inside the project on every OS (no "/x", "C:\x", "C:x", "\\host" or ".." escapes). */
+function staysInsideProject(p: string): boolean {
+  if (posix.isAbsolute(p) || win32.isAbsolute(p) || /^[a-zA-Z]:/.test(p)) return false;
+  const normalized = posix.normalize(p.replace(/\\/g, "/"));
+  return normalized !== ".." && !normalized.startsWith("../");
+}
+
+const projectPath = z.string().refine(staysInsideProject, {
+  message: "must be a relative path inside the project (no absolute paths or ..)",
+});
 
 const effort = z.enum(["low", "medium", "high", "xhigh", "max"]);
 const concurrency = z.number().int().min(1).max(16).default(4);
@@ -38,8 +50,8 @@ export const ConfigSchema = z.object({
     .default({ doNotTranslate: [], terms: {} }),
   paths: z
     .object({
-      play: z.string().optional(),
-      appstore: z.string().optional(),
+      play: projectPath.optional(),
+      appstore: projectPath.optional(),
     })
     .default({}),
 });
