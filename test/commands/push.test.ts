@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { runPush } from "../../src/commands/push.js";
 import { createLogger } from "../../src/log.js";
+import type { PlayApi, PlayListing } from "../../src/stores/google-play/client.js";
+import { createPlayStore } from "../../src/stores/google-play/store.js";
 import { fakeStore } from "../helpers/fake-store.js";
 import { makeProject } from "../helpers/project.js";
 
@@ -122,5 +124,54 @@ describe("runPush", () => {
     const { log, out } = capture();
     await runPush({ config: cfg, cwd, client: fakeStore(remote).client, log, dryRun: true, confirm: yes });
     expect(out.join("\n")).toContain("fastlane supply");
+  });
+
+  it("logs the diff before asking for confirmation", async () => {
+    const { cwd, config: cfg } = await makeProject(source, config);
+    const order: string[] = [];
+    const out: string[] = [];
+    const log = createLogger({
+      verbose: false,
+      secrets: [],
+      out: (l) => {
+        order.push("log");
+        out.push(l);
+      },
+      err: () => {},
+    });
+    const confirm = vi.fn(async () => {
+      order.push("confirm");
+      return false;
+    });
+    await runPush({ config: cfg, cwd, client: fakeStore(remote).client, log, confirm });
+    expect(order.indexOf("confirm")).toBeGreaterThan(order.lastIndexOf("log"));
+    expect(out).toContain('  title: "Old title" → "New title"');
+  });
+
+  it("aborts the session and rethrows when confirm rejects", async () => {
+    const { cwd, config: cfg } = await makeProject(source, config);
+    const { client, state } = fakeStore(remote);
+    const confirm = async (): Promise<boolean> => {
+      throw new Error("prompt closed");
+    };
+    await expect(runPush({ config: cfg, cwd, client, log: capture().log, confirm })).rejects.toThrow("prompt closed");
+    expect(state).toMatchObject({ updates: [], aborted: 1, committed: 0 });
+  });
+
+  it("treats a CRLF remote value as equal to the LF local one", async () => {
+    const { cwd, config: cfg } = await makeProject({ ...source, [`${P}/en-US/full_description.txt`]: "Long\ntext" }, config);
+    const listings: PlayListing[] = [
+      { language: "en-US", title: "New title", shortDescription: "S", fullDescription: "Long\r\ntext", video: "v" },
+    ];
+    const api: PlayApi = {
+      insertEdit: async () => "e1",
+      listListings: async () => listings,
+      updateListing: async () => {},
+      validateEdit: async () => {},
+      commitEdit: async () => {},
+      deleteEdit: async () => {},
+    };
+    const report = await runPush({ config: cfg, cwd, client: createPlayStore(api), log: capture().log, confirm: yes });
+    expect(report.status).toBe("nothing");
   });
 });

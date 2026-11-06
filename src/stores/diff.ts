@@ -54,22 +54,41 @@ export function computeDiff(
   return { diffs, problems };
 }
 
-const PREVIEW_CHARS = 60;
+const WINDOW_CHARS = 60;
+const CONTEXT_BEFORE = 20;
 
-function preview(value: string | undefined): string {
-  if (value === undefined) return "(empty)";
-  const chars = [...value];
-  const shown = chars.length > PREVIEW_CHARS ? `${chars.slice(0, PREVIEW_CHARS - 3).join("")}...` : value;
-  return JSON.stringify(shown);
+function firstDifference(a: string[], b: string[]): number {
+  const max = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < max && a[i] === b[i]) i++;
+  return i;
+}
+
+/** Shows the value in full when short, else a window starting `start` code points in. */
+function show(chars: string[] | undefined, start: number): string {
+  if (chars === undefined) return "(empty)";
+  if (chars.length <= WINDOW_CHARS) return JSON.stringify(chars.join(""));
+  const end = Math.min(chars.length, start + WINDOW_CHARS);
+  const body = chars.slice(start, end).join("");
+  return JSON.stringify(`${start > 0 ? "..." : ""}${body}${end < chars.length ? "..." : ""}`);
+}
+
+function describeChange(change: FieldChange): string {
+  const from = change.from === undefined ? undefined : [...change.from];
+  const to = [...change.to];
+  const start = Math.max(0, (from === undefined ? 0 : firstDifference(from, to)) - CONTEXT_BEFORE);
+  let label = change.field;
+  if (to.length > WINDOW_CHARS || (from?.length ?? 0) > WINDOW_CHARS) {
+    label += from === undefined ? ` (${to.length} chars)` : ` (${from.length} → ${to.length} chars)`;
+  }
+  return `  ${label}: ${show(from, start)} → ${show(to, start)}`;
 }
 
 export function formatDiff(diffs: ListingDiff[]): string[] {
   const lines: string[] = [];
   for (const diff of diffs) {
     lines.push(`${diff.locale}${diff.isNew ? " (new listing)" : ""}:`);
-    for (const change of diff.changes) {
-      lines.push(`  ${change.field}: ${preview(change.from)} → ${preview(change.to)}`);
-    }
+    for (const change of diff.changes) lines.push(describeChange(change));
   }
   return lines;
 }

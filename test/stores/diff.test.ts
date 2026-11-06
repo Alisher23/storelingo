@@ -79,7 +79,37 @@ describe("formatDiff", () => {
       "en-US:",
       '  title: "Prayer Times" → "Prayer Times Pro"',
       "ru-RU (new listing):",
-      `  full_description: (empty) → "${"x".repeat(57)}..."`,
+      `  full_description (80 chars): (empty) → "${"x".repeat(60)}..."`,
     ]);
+  });
+
+  it("shows a window around the first difference in long values", () => {
+    const base = "a".repeat(150);
+    const from = `${base}X${"b".repeat(49)}`;
+    const to = `${base}Y${"b".repeat(49)}`;
+    const [, line] = formatDiff([
+      {
+        locale: "en-US",
+        isNew: false,
+        changes: [{ field: "full_description", from, to }],
+        merged: { locale: "en-US", fields: {} },
+      },
+    ]);
+    expect(from).toHaveLength(200);
+    expect(line).toContain("full_description (200 → 200 chars)");
+    expect(line).toContain(`"...${"a".repeat(20)}X${"b".repeat(39)}..."`);
+    expect(line).toContain(`"...${"a".repeat(20)}Y${"b".repeat(39)}..."`);
+  });
+
+  it("prints short values in full", () => {
+    const [, line] = formatDiff([
+      {
+        locale: "en-US",
+        isNew: false,
+        changes: [{ field: "title", from: "😀a", to: "😀b" }],
+        merged: { locale: "en-US", fields: {} },
+      },
+    ]);
+    expect(line).toBe('  title: "😀a" → "😀b"');
   });
 });

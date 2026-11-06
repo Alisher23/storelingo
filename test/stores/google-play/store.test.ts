@@ -47,6 +47,12 @@ describe("createPlayStore", () => {
     ]);
   });
 
+  it("normalizes remote text to LF without a BOM", async () => {
+    const { api } = fakeApi([{ language: "en-US", title: "\uFEFFT", fullDescription: "a\r\nb\rc" }]);
+    const session = await createPlayStore(api).open();
+    expect(await session.listings()).toEqual([{ locale: "en-US", fields: { title: "T", full_description: "a\nb\nc" } }]);
+  });
+
   it("sends updates with Play field names", async () => {
     const { api } = fakeApi();
     const session = await createPlayStore(api).open();

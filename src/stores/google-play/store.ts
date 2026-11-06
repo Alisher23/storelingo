@@ -1,4 +1,5 @@
 import type { StoreClient, StoreListing, StoreSession } from "../types.js";
+import { normalizeText } from "../../util/text.js";
 import type { PlayApi, PlayListing } from "./client.js";
 
 type PlayTextField = "title" | "shortDescription" | "fullDescription" | "video";
@@ -15,7 +16,7 @@ function fromPlay(listing: PlayListing): StoreListing {
   const fields: Record<string, string> = {};
   for (const [key, playKey] of FIELD_MAP) {
     const value = listing[playKey];
-    if (typeof value === "string" && value.trim() !== "") fields[key] = value;
+    if (typeof value === "string" && value.trim() !== "") fields[key] = normalizeText(value);
   }
   return { locale: listing.language, fields };
 }

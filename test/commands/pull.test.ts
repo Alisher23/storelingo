@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { runPull } from "../../src/commands/pull.js";
 import { createLogger } from "../../src/log.js";
 import type { StoreListing } from "../../src/stores/types.js";
+import type { PlayApi } from "../../src/stores/google-play/client.js";
+import { createPlayStore } from "../../src/stores/google-play/store.js";
 import { fakeStore } from "../helpers/fake-store.js";
 import { makeProject } from "../helpers/project.js";
 
@@ -44,6 +46,20 @@ describe("runPull", () => {
     const report = await runPull({ config: cfg, cwd, client: fakeStore(remote).client, log: capture().log });
     expect(report.unchanged).toBe(1);
     expect(report.written).toBe(3);
+  });
+
+  it("counts a CRLF remote value equal to the LF local file as unchanged", async () => {
+    const { cwd, config: cfg } = await makeProject({ [`${P}/en-US/full_description.txt`]: "Long\ntext" }, config);
+    const api: PlayApi = {
+      insertEdit: async () => "e1",
+      listListings: async () => [{ language: "en-US", fullDescription: "Long\r\ntext" }],
+      updateListing: async () => {},
+      validateEdit: async () => {},
+      commitEdit: async () => {},
+      deleteEdit: async () => {},
+    };
+    const report = await runPull({ config: cfg, cwd, client: createPlayStore(api), log: capture().log });
+    expect(report).toMatchObject({ written: 0, unchanged: 1 });
   });
 
   it("keeps a different local file unless --force", async () => {
