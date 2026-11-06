@@ -18,7 +18,7 @@
 - Files are written UTF-8 without BOM with `\n` line endings; on read, strip BOM and convert `\r\n` → `\n`.
 - Character limits count Unicode code points (`[...str].length`).
 - Text is never truncated mechanically; an over-limit translation is an error.
-- Secrets come only from env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `STORELINGO_TRANSLATOR_API_KEY`); never written to config, lock, logs or error messages. `OPENAI_API_KEY` is sent only to host `api.openai.com`; any other OpenAI-compatible host uses only `STORELINGO_TRANSLATOR_API_KEY`. Non-loopback `baseUrl` must be https (http only for localhost, 127.0.0.1, [::1]).
+- Secrets come only from env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `STORELINGO_TRANSLATOR_API_KEY`); never written to config, lock, logs or error messages. `OPENAI_API_KEY` is sent only to host `api.openai.com`; any other OpenAI-compatible host uses only `STORELINGO_TRANSLATOR_API_KEY`, and only when the baseUrl hostname equals `STORELINGO_TRANSLATOR_API_HOST` (else E_CONFIG). Non-loopback `baseUrl` must be https (http only for localhost, 127.0.0.1, [::1]).
 - Exit codes: `0` success, `1` validation errors / partial failure, `2` bad usage or config.
 - Default translator: `provider: "anthropic"`, `model: "claude-opus-5-5"`, `effort: "medium"`, `concurrency: 4`.
 - Config file `storelingo.config.json`; lock file `storelingo.lock.json`; both in the project root (cwd).

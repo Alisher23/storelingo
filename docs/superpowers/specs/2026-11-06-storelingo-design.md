@@ -165,6 +165,7 @@ interface StoreClient {
 | `ANTHROPIC_API_KEY` | Claude API |
 | `OPENAI_API_KEY` | только для `baseUrl` на `api.openai.com` |
 | `STORELINGO_TRANSLATOR_API_KEY` | ключ для любого другого OpenAI-совместимого хоста (OpenRouter и т.п.); для Ollama не нужен |
+| `STORELINGO_TRANSLATOR_API_HOST` | хост, которому разрешено отправлять `STORELINGO_TRANSLATOR_API_KEY` (например `openrouter.ai`); если ключ задан, а хост `baseUrl` не совпадает — `E_CONFIG` |
 | `STORELINGO_PLAY_SERVICE_ACCOUNT` | путь к JSON сервисного аккаунта Google **или** сам JSON |
 | `STORELINGO_ASC_ISSUER_ID`, `STORELINGO_ASC_KEY_ID` | App Store Connect API |
 | `STORELINGO_ASC_PRIVATE_KEY` | путь к `.p8` **или** его содержимое |
