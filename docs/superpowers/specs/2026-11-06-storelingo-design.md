@@ -46,7 +46,7 @@ npx storelingo push
 
 ## 4. Архитектура
 
-Node ≥ 20, ESM, TypeScript strict. Зависимости: `commander`, `zod`, `jose`, `@inquirer/prompts` (только для `init` и подтверждений). HTTP — встроенный `fetch`. SDK Google/Apple не используются.
+Node ≥ 20, ESM, TypeScript strict. Зависимости: `commander`, `zod`, `@anthropic-ai/sdk` (официальный SDK для адаптера Claude), `@inquirer/prompts` (только для `init` и подтверждений); с v0.2 — `jose`. Остальной HTTP — встроенный `fetch`. SDK Google/Apple не используются.
 
 ```
 src/
@@ -138,7 +138,8 @@ interface StoreClient {
   },
   "translator": {
     "provider": "anthropic",
-    "model": "claude-sonnet-5-5",
+    "model": "claude-opus-5-5",
+    "effort": "medium",
     "concurrency": 4
   },
   "context": "Prayer times and Quran app for Muslims in Central Asia.",
@@ -152,7 +153,9 @@ interface StoreClient {
 
 - `targetLocales` задаются в «общих» кодах. Перевод в коды каждого магазина делает `locales/`. Если магазин не поддерживает язык (например, App Store не поддерживает `ky`), язык пропускается для этого магазина с предупреждением.
 - `provider: "openai-compatible"` дополнительно требует `baseUrl` (OpenAI, OpenRouter, Gemini OpenAI-endpoint, Ollama).
-- Default-модель для Claude сверить с актуальной документацией Anthropic на этапе реализации.
+- Default для Claude: модель `claude-opus-5-5`, `effort: "medium"` (у этой модели thinking не отключается, глубину задаёт effort). Пользователь может указать любую модель, например `claude-sonnet-5-5` или `claude-haiku-5-5` для экономии.
+- Адаптер Claude включает серверный fallback при отказе модели (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`) и проверяет `stop_reason` (`refusal`, `max_tokens`) до чтения ответа. Ретраи 429/5xx делает сам SDK (`maxRetries`).
+- JSON-ответ запрашивается через structured outputs: `output_config.format = { type: "json_schema", schema }`.
 
 ### 5.4 Секреты — только переменные окружения
 
@@ -257,6 +260,9 @@ Lock-файл коммитится в git, чтобы CI и соавторы р�
 | `E_LOCALE_UNSUPPORTED` | язык не поддерживается магазином | список поддерживаемых |
 | `E_LIMIT` | перевод не уложился в лимит | поправить вручную или упростить исходник |
 | `E_TRANSLATOR` | ошибка ИИ-провайдера | статус и текст ответа (без ключа) |
+| `E_MISSING` | нет обязательного поля в исходном языке | какой файл создать |
+| `E_FORMAT` | неверный формат keywords | пример правильного формата |
+| `E_USAGE` | неверные аргументы команды | правильный вызов |
 
 Коды выхода: `0` — успех, `1` — ошибки валидации или частичный сбой, `2` — неверное использование или конфиг.
 
