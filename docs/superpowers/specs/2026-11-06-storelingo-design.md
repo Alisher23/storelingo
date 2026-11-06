@@ -46,7 +46,7 @@ npx storelingo push
 
 ## 4. Архитектура
 
-Node ≥ 20, ESM, TypeScript strict. Зависимости: `commander`, `zod`, `@anthropic-ai/sdk` (официальный SDK для адаптера Claude), `@inquirer/prompts` (только для `init` и подтверждений); с v0.2 — `jose`. Остальной HTTP — встроенный `fetch`. SDK Google/Apple не используются.
+Node ≥ 22.13, ESM, TypeScript strict. Зависимости: `commander`, `zod`, `@anthropic-ai/sdk` (официальный SDK для адаптера Claude), `@inquirer/prompts` (только для `init` и подтверждений); с v0.2 — `jose`. Остальной HTTP — встроенный `fetch`. SDK Google/Apple не используются.
 
 ```
 src/
@@ -271,7 +271,7 @@ Lock-файл коммитится в git, чтобы CI и соавторы р�
 - **vitest.** Модульные тесты: `fields`, `locales`, `lock` (все ветки §6.1), сборка промпта, нормализация keywords, подсчёт символов (эмодзи, арабский, комбинируемые знаки).
 - **Провайдеры и магазины:** тесты на подменённом `fetch` с фикстурами в формате документации API. Проверяются последовательность вызовов (`insert → update → validate → commit`, откат при ошибке), ретраи, обработка 401/403/429.
 - **Круговой тест metadata:** чтение → запись → байтовое совпадение на фикстуре fastlane-проекта.
-- **CI (GitHub Actions):** lint (eslint), `tsc --noEmit`, тесты; матрица Node 20/22 × ubuntu/windows/macos.
+- **CI (GitHub Actions):** lint (eslint), `tsc --noEmit`, тесты; матрица Node 22/24 × ubuntu/windows/macos.
 - **Перед v1.0:** ручная e2e-проверка на реальном приложении (Play internal track, App Store версия в подготовке).
 
 ## 10. Open-source оформление

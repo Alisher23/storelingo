@@ -6,13 +6,13 @@
 
 **Architecture:** Small single-purpose modules: data registries (`fields/`, `locales/`), pure logic (`lock/`, `translate/engine`, `commands/check`), I/O adapters (`metadata/`, `translate/providers/`), and a thin `cli/` layer. Every network or filesystem dependency is injected so logic is unit-tested without real keys.
 
-**Tech Stack:** Node ≥ 20 (ESM), TypeScript strict, `commander`, `zod`, `@anthropic-ai/sdk`, `@inquirer/prompts`, vitest, eslint (typescript-eslint).
+**Tech Stack:** Node ≥ 22.13 (ESM), TypeScript strict, `commander`, `zod`, `@anthropic-ai/sdk`, `@inquirer/prompts`, vitest, eslint (typescript-eslint).
 
 **Spec:** `docs/superpowers/specs/2026-11-06-storelingo-design.md` (v0.1 = milestone 1 in §11: `init`, `translate`, `check`; `pull`/`push` are later plans).
 
 ## Global Constraints
 
-- Node `>=20`, `"type": "module"`, `module`/`moduleResolution` `NodeNext`; relative imports end in `.js`.
+- Node `>=22.13` (Node 20 is end-of-life; commander 15, vitest 5 and @inquirer/prompts 8 need >=22.12/22.13), `"type": "module"`, `module`/`moduleResolution` `NodeNext`; relative imports end in `.js`.
 - TypeScript `strict: true`. No `any` in `src/`.
 - Runtime deps limited to: `commander`, `zod`, `@anthropic-ai/sdk`, `@inquirer/prompts`.
 - Files are written UTF-8 without BOM with `\n` line endings; on read, strip BOM and convert `\r\n` → `\n`.
