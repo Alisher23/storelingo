@@ -23,6 +23,13 @@ describe("createOpenAiCompatibleLlm", () => {
     expect(sent.messages[0]).toEqual({ role: "system", content: "SYS" });
   });
 
+  it("never follows redirects (the body would be re-sent to another host)", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json(200, body));
+    const llm = createOpenAiCompatibleLlm({ baseUrl: "https://api.example.com/v1", model: "gpt-x", fetchImpl });
+    await llm.completeJson({ system: "SYS", user: "USER", keys: ["title"] });
+    expect(fetchImpl.mock.calls[0]![1].redirect).toBe("error");
+  });
+
   it("omits auth when no key (e.g. Ollama)", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(json(200, body));
     const llm = createOpenAiCompatibleLlm({ baseUrl: "http://localhost:11434/v1", model: "qwen3", fetchImpl });

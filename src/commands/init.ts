@@ -1,11 +1,11 @@
 import { checkbox, input, select } from "@inquirer/prompts";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { CONFIG_FILE, parseConfig } from "../config/load.js";
 import { StorelingoError } from "../errors.js";
 import type { StoreId } from "../fields/registry.js";
 import { LOCALES, toStoreLocale } from "../locales/table.js";
-import { DEFAULT_ROOTS } from "../metadata/fastlane.js";
+import { DEFAULT_ROOTS, assertSafePath } from "../metadata/fastlane.js";
 
 export interface InitAnswers {
   sourceLocale: string;
@@ -60,6 +60,10 @@ export async function writeInitFiles(
   const json = buildConfigJson(answers);
   const config = parseConfig(json); // validate before touching disk
   const configPath = join(cwd, CONFIG_FILE);
+  const gitignorePath = join(cwd, ".gitignore");
+  // A planted symlink must not redirect our writes outside the project.
+  await assertSafePath(resolve(cwd), configPath);
+  await assertSafePath(resolve(cwd), gitignorePath);
   if (!opts.force && (await exists(configPath))) {
     throw new StorelingoError("E_USAGE", `${CONFIG_FILE} already exists`, "Use `storelingo init --force` to overwrite it.");
   }
@@ -77,7 +81,6 @@ export async function writeInitFiles(
     created.push({ action: "created", path: rel });
   }
 
-  const gitignorePath = join(cwd, ".gitignore");
   const hadGitignore = await exists(gitignorePath);
   const current = hadGitignore ? await readFile(gitignorePath, "utf8") : "";
   const present = new Set(current.split(/\r?\n/).map((l) => l.trim()));

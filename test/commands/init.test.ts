@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildConfigJson, writeInitFiles, type InitAnswers } from "../../src/commands/init.js";
 import { parseConfig } from "../../src/config/load.js";
-import { makeTmpDir } from "../helpers/tmp.js";
+import { makeTmpDir, trySymlink } from "../helpers/tmp.js";
 
 const answers: InitAnswers = {
   sourceLocale: "en-US",
@@ -46,6 +46,29 @@ describe("writeInitFiles", () => {
     expect((await stat(join(cwd, "fastlane/metadata/android/en-US"))).isDirectory()).toBe(true);
     const gitignore = await readFile(join(cwd, ".gitignore"), "utf8");
     expect(gitignore).toBe("node_modules/\n*.p8\nplay-service-account*.json\n");
+  });
+
+  it("refuses a symlinked .gitignore and leaves its target and the project untouched", async () => {
+    const cwd = await makeTmpDir();
+    const outside = await makeTmpDir();
+    const target = join(outside, "victim.txt");
+    await writeFile(target, "keep me\n");
+    if (!(await trySymlink(target, join(cwd, ".gitignore"), "file"))) return; // symlinks not allowed here (Windows)
+
+    await expect(writeInitFiles(cwd, answers)).rejects.toMatchObject({ code: "E_CONFIG" });
+    expect(await readFile(target, "utf8")).toBe("keep me\n");
+    await expect(stat(join(cwd, "storelingo.config.json"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("refuses a symlinked storelingo.config.json and leaves its target untouched", async () => {
+    const cwd = await makeTmpDir();
+    const outside = await makeTmpDir();
+    const target = join(outside, "victim.json");
+    await writeFile(target, "{}\n");
+    if (!(await trySymlink(target, join(cwd, "storelingo.config.json"), "file"))) return;
+
+    await expect(writeInitFiles(cwd, answers, { force: true })).rejects.toMatchObject({ code: "E_CONFIG" });
+    expect(await readFile(target, "utf8")).toBe("{}\n");
   });
 
   it("does not duplicate .gitignore entries", async () => {

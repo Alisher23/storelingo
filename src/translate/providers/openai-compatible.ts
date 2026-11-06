@@ -48,7 +48,7 @@ export function createOpenAiCompatibleLlm(opts: {
           const timedOut = () => new RetryableError(`request timed out after ${timeoutMs / 1000}s`);
           let res: Response;
           try {
-            res = await fetchImpl(url, { method: "POST", headers, body, signal });
+            res = await fetchImpl(url, { method: "POST", headers, body, signal, redirect: "error" });
           } catch (err) {
             if (signal.aborted) throw timedOut();
             throw new RetryableError(`Network error: ${(err as Error).message}`);
