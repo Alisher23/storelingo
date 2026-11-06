@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tgz
+.env
+*.p8
+play-service-account*.json

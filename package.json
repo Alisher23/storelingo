@@ -1,0 +1,51 @@
+{
+  "name": "storelingo",
+  "version": "0.1.0",
+  "description": "AI localization for Google Play and App Store listings. Reads and writes fastlane metadata.",
+  "type": "module",
+  "bin": {
+    "storelingo": "dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "fastlane",
+    "localization",
+    "app-store",
+    "google-play",
+    "aso",
+    "i18n",
+    "llm",
+    "claude"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Alisher23/storelingo.git"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "@inquirer/prompts": "^8.7.5",
+    "commander": "^15.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "eslint": "^10.14.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.1.0"
+  }
+}
