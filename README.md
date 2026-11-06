@@ -1,0 +1,263 @@
+# storelingo
+
+AI localization for your Google Play and App Store listings. Works with fastlane metadata — no fastlane required.
+
+> Status: v0.1, not yet published to npm. The commands below show the intended usage (`npx storelingo`). Until the first release, build from source (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+
+[Русская версия](README.ru.md)
+
+## Why
+
+- **Store limits are respected.** Every field has its character limit (counted in Unicode code points). If a translation is too long, storelingo asks the model to shorten it, up to 2 times. Text is never truncated mechanically; if it still does not fit, the file is not written and the run reports an error.
+- **Keywords are localized for search, not translated literally.** App Store keywords are chosen for what people in the target market search for, then normalized (comma-separated, no spaces, no duplicates, no words already in the name or subtitle).
+- **Your manual edits are protected.** If you edit a translated file by hand, storelingo notices and skips it (use `--force` to overwrite).
+- **Incremental.** A lock file records what was translated, so only changed source fields are sent to the model.
+- **Bring your own model.** Claude (default) or any OpenAI-compatible endpoint, including a local Ollama.
+
+## Quick start
+
+```bash
+npx storelingo init
+export ANTHROPIC_API_KEY=sk-ant-...
+npx storelingo translate
+git diff
+npx storelingo check
+```
+
+`init` asks a few questions and creates `storelingo.config.json` plus the fastlane folders. Put your source-language texts into those folders, then run `translate`. Review the result with `git diff`, and commit `storelingo.lock.json` together with the translations.
+
+Requires Node.js >= 22.13.
+
+## Folder layout
+
+storelingo reads and writes the standard fastlane trees (paths can be changed in `paths`):
+
+```
+fastlane/metadata/android/          # Google Play (fastlane supply)
+  en-US/
+    title.txt
+    short_description.txt
+    full_description.txt
+    video.txt                       # not translated
+    changelogs/<versionCode>.txt
+  ru-RU/ ...
+
+fastlane/metadata/                  # App Store (fastlane deliver)
+  en-US/
+    name.txt
+    subtitle.txt
+    description.txt
+    keywords.txt
+    promotional_text.txt
+    release_notes.txt
+    marketing_url.txt               # urls are not translated
+    support_url.txt
+    privacy_url.txt
+  ru/ ...
+```
+
+The `android`, `default`, `review_information` and `trade_representative_contact_information` folders inside `fastlane/metadata` are not treated as App Store locales. Files are written as UTF-8 without BOM with `\n` line endings; the source's trailing newline is preserved.
+
+For Google Play, the newest changelog (highest version code) of the source locale is the one that gets translated.
+
+## Config reference
+
+`storelingo.config.json` in the project root:
+
+```json
+{
+  "sourceLocale": "en-US",
+  "targetLocales": ["ru", "de", "tr", "ar", "uz"],
+  "stores": {
+    "play": { "packageName": "com.example.app" },
+    "appstore": { "appId": "1234567890" }
+  },
+  "translator": {
+    "provider": "anthropic",
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "concurrency": 4
+  },
+  "context": "Prayer times and Quran app for Muslims in Central Asia.",
+  "glossary": {
+    "doNotTranslate": ["Quran Widgets"],
+    "terms": { "ru": { "prayer": "намаз" } }
+  },
+  "paths": {}
+}
+```
+
+| Key | Required | Description |
+|---|---|---|
+| `sourceLocale` | yes | storelingo locale code of your source texts, e.g. `en-US`. |
+| `targetLocales` | yes | Non-empty list of storelingo locale codes to translate into. |
+| `stores.play.packageName` | one store required | Enables Google Play. |
+| `stores.appstore.appId` | one store required | Enables the App Store. |
+| `translator.provider` | yes | `anthropic` or `openai-compatible`. |
+| `translator.model` | `anthropic`: no (default `claude-opus-5-5`); `openai-compatible`: yes | Model name. |
+| `translator.effort` | no, `anthropic` only | `low`, `medium` (default), `high`, `xhigh` or `max`. |
+| `translator.baseUrl` | `openai-compatible` only | API base URL. Must be `https://` unless it points to `localhost`, `127.0.0.1` or `[::1]`. |
+| `translator.concurrency` | no (default `4`) | Locales translated in parallel, 1 to 16. |
+| `context` | no | Short description of your app; added to every prompt. |
+| `glossary.doNotTranslate` | no | Terms kept exactly as written (brand names). |
+| `glossary.terms` | no | Preferred translations per target locale: `{ "<locale>": { "<source term>": "<translation>" } }`. |
+| `paths.play` | no | Play metadata root (default `fastlane/metadata/android`). |
+| `paths.appstore` | no | App Store metadata root (default `fastlane/metadata`). |
+
+### Translators and API keys
+
+Keys come only from environment variables. They are never written to the config, the lock file or the logs.
+
+| Variable | Used for |
+|---|---|
+| `ANTHROPIC_API_KEY` | Claude (`provider: "anthropic"`). |
+| `OPENAI_API_KEY` | OpenAI-compatible, **only** when the `baseUrl` host is `api.openai.com`. |
+| `STORELINGO_TRANSLATOR_API_KEY` | Any other OpenAI-compatible host (OpenRouter, Gemini endpoint, ...). |
+| `STORELINGO_TRANSLATOR_API_HOST` | The one host allowed to receive `STORELINGO_TRANSLATOR_API_KEY`. |
+
+Rules for `openai-compatible`:
+
+- `api.openai.com`: uses `OPENAI_API_KEY`.
+- Any other host: uses `STORELINGO_TRANSLATOR_API_KEY`, and only if `STORELINGO_TRANSLATOR_API_HOST` equals the hostname of `baseUrl`. If the key is set but the host does not match, storelingo stops with a config error (exit code 2) instead of sending the key.
+- Local Ollama (or any server that needs no key): no key variable is needed.
+- A non-loopback `baseUrl` must be `https://`; plain `http://` is allowed only for `localhost`, `127.0.0.1` and `[::1]`.
+
+Why: a `storelingo.config.json` can come from someone else's repository. Without these rules, a malicious config could set `baseUrl` to its own server and collect whatever API key is in your environment. Each key can only travel to the host you explicitly allowed.
+
+OpenRouter:
+
+```json
+{
+  "translator": {
+    "provider": "openai-compatible",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "model": "anthropic/claude-sonnet-5-5"
+  }
+}
+```
+
+```bash
+export STORELINGO_TRANSLATOR_API_KEY=sk-or-...
+export STORELINGO_TRANSLATOR_API_HOST=openrouter.ai
+npx storelingo translate
+```
+
+Local Ollama (no key):
+
+```json
+{
+  "translator": {
+    "provider": "openai-compatible",
+    "baseUrl": "http://localhost:11434/v1",
+    "model": "qwen3:32b"
+  }
+}
+```
+
+## Commands
+
+```
+storelingo [--config <path>] [--verbose] [--no-color] <command>
+```
+
+| Command | What it does |
+|---|---|
+| `init [--force]` | Interactive setup: creates `storelingo.config.json` and the fastlane folders. `--force` overwrites an existing config. |
+| `translate [--locale <code...>] [--force]` | Translates changed fields into the target locales. `--locale` limits the run to some of `targetLocales`. `--force` re-translates everything, including files you edited manually. |
+| `check` | Offline validation: character limits, missing required fields, keyword format. Makes no API calls. |
+
+Global flags: `--config <path>` (default `storelingo.config.json`), `--verbose` (debug output), `--no-color`, `--version`, `--help`.
+
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| `0` | Success. |
+| `1` | `check` found errors, or some translations failed. |
+| `2` | Bad usage or config (invalid flag, missing or invalid config, missing API key). |
+
+## How translation works
+
+1. For every store and target locale, storelingo decides per field: skip if the source is empty or missing; skip if you edited the translated file by hand; skip if the source has not changed since the last run; otherwise translate.
+2. One request per store and locale carries all selected fields, together with your `context`, `doNotTranslate` list, the locale's `terms` and each field's character limit. The prompt asks for localized, idiomatic text and preserves line breaks and bullet lists.
+3. The JSON reply is validated; an invalid reply is retried once.
+4. A field over its limit is sent back for shortening, at most 2 times. If it still exceeds the limit, nothing is written for that field and it is reported as an error.
+5. App Store `keywords` are normalized in code after the reply: trimmed, comma-separated without spaces, deduplicated, words from the name and subtitle removed.
+6. Translations are written to the fastlane folders. `storelingo.lock.json` stores hashes of each source and written output. A target file whose hash no longer matches the lock was edited by you and is skipped, unless you pass `--force`. The lock is written atomically after each field; commit it to git.
+7. The run continues past a single failure. At the end storelingo prints a summary (translated, unchanged, edited manually, unsupported, failed, tokens) and exits with code 1 if anything failed. Fields that succeeded are already saved.
+
+## Locale codes
+
+storelingo uses its own locale codes in `sourceLocale` and `targetLocales` (for example `ru`, `de`, `es-419`, `zh-Hans`) and maps them to each store's code: `ru` is `ru-RU` on Google Play and `ru` on the App Store, `es-419` is `es-MX` on the App Store, `zh-Hans` is `zh-CN` on Google Play. The fastlane folders use the store codes.
+
+Some languages exist on only one store. For example `ky` (Kyrgyz), `kk` (Kazakh) and `uz` (Uzbek) are Google Play only. If a store does not support a target locale, that locale is skipped for that store with a warning and counted as "unsupported" in the summary; the other store is still translated. The source locale must be supported by every configured store.
+
+## Cost
+
+The default model is `claude-opus-5-5` with `effort: "medium"`. For cheaper runs set `"model": "claude-sonnet-5-5"` or `"claude-haiku-5-5"` in the `translator` block. Only changed fields are sent, so repeat runs are small. Input and output token totals are printed after each run, so you can estimate the cost with your provider's price list.
+
+## Supported languages
+
+Generated from `src/locales/table.ts`. "—" means the store does not support that language.
+
+| Code | Language | Google Play | App Store |
+|---|---|---|---|
+| `ar` | Arabic | `ar` | `ar-SA` |
+| `az` | Azerbaijani | `az-AZ` | — |
+| `ca` | Catalan | `ca` | `ca` |
+| `cs` | Czech | `cs-CZ` | `cs` |
+| `da` | Danish | `da-DK` | `da` |
+| `de` | German | `de-DE` | `de-DE` |
+| `el` | Greek | `el-GR` | `el` |
+| `en-AU` | English (Australia) | `en-AU` | `en-AU` |
+| `en-CA` | English (Canada) | `en-CA` | `en-CA` |
+| `en-GB` | English (United Kingdom) | `en-GB` | `en-GB` |
+| `en-US` | English (United States) | `en-US` | `en-US` |
+| `es-ES` | Spanish (Spain) | `es-ES` | `es-ES` |
+| `es-419` | Spanish (Latin America) | `es-419` | `es-MX` |
+| `fa` | Persian | `fa` | — |
+| `fi` | Finnish | `fi-FI` | `fi` |
+| `fr-CA` | French (Canada) | `fr-CA` | `fr-CA` |
+| `fr-FR` | French (France) | `fr-FR` | `fr-FR` |
+| `he` | Hebrew | `iw-IL` | `he` |
+| `hi` | Hindi | `hi-IN` | `hi` |
+| `hr` | Croatian | `hr` | `hr` |
+| `hu` | Hungarian | `hu-HU` | `hu` |
+| `id` | Indonesian | `id` | `id` |
+| `it` | Italian | `it-IT` | `it` |
+| `ja` | Japanese | `ja-JP` | `ja` |
+| `kk` | Kazakh | `kk` | — |
+| `ko` | Korean | `ko-KR` | `ko` |
+| `ky` | Kyrgyz | `ky-KG` | — |
+| `ms` | Malay | `ms` | `ms` |
+| `nl` | Dutch | `nl-NL` | `nl-NL` |
+| `no` | Norwegian | `no-NO` | `no` |
+| `pl` | Polish | `pl-PL` | `pl` |
+| `pt-BR` | Portuguese (Brazil) | `pt-BR` | `pt-BR` |
+| `pt-PT` | Portuguese (Portugal) | `pt-PT` | `pt-PT` |
+| `ro` | Romanian | `ro` | `ro` |
+| `ru` | Russian | `ru-RU` | `ru` |
+| `sk` | Slovak | `sk` | `sk` |
+| `sv` | Swedish | `sv-SE` | `sv` |
+| `th` | Thai | `th` | `th` |
+| `tr` | Turkish | `tr-TR` | `tr` |
+| `uk` | Ukrainian | `uk` | `uk` |
+| `uz` | Uzbek | `uz` | — |
+| `vi` | Vietnamese | `vi` | `vi` |
+| `zh-Hans` | Chinese (Simplified) | `zh-CN` | `zh-Hans` |
+| `zh-Hant` | Chinese (Traditional) | `zh-TW` | `zh-Hant` |
+
+## Roadmap
+
+- v0.2: Google Play `pull` / `push`
+- v0.3: App Store `pull` / `push`
+- v1.0: GitHub Action
+- Later: screenshots, RuStore, Huawei AppGallery
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). To add a language or fix a character limit you usually only need to edit one data file. Repository: https://github.com/Alisher23/storelingo
+
+## License
+
+MIT
