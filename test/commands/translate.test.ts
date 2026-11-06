@@ -136,6 +136,9 @@ describe("runTranslate", () => {
     const { translator, calls } = fakeTranslator();
     await runTranslate({ config: cfg, cwd, translator, log: silent, locales: ["de"] });
     expect(calls.map((c) => c.targetLocale.code)).toEqual(["de"]);
+    const dup = fakeTranslator();
+    await runTranslate({ config: cfg, cwd, translator: dup.translator, log: silent, locales: ["ru", "ru"], force: true });
+    expect(dup.calls.map((c) => c.targetLocale.code)).toEqual(["ru"]);
     await expect(runTranslate({ config: cfg, cwd, translator, log: silent, locales: ["fr-FR"] })).rejects.toMatchObject({
       code: "E_USAGE",
     });

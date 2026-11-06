@@ -67,6 +67,38 @@ describe("parseConfig", () => {
     expect(config.paths).toEqual({ play: "meta/play", appstore: "./ios/../meta" });
   });
 
+  it("rejects duplicate targetLocales, listing the duplicates", () => {
+    expect(() => parseConfig({ ...minimal, targetLocales: ["ru", "de", "ru", "de", "tr"] })).toThrowError(
+      expect.objectContaining({ code: "E_CONFIG", message: expect.stringMatching(/targetLocales: .*duplicate.*ru, de/) }),
+    );
+  });
+
+  it("rejects unknown (misspelled) keys, naming the key", () => {
+    expect(() => parseConfig({ ...minimal, glossary: { doNotTranslte: ["X"] } })).toThrowError(
+      expect.objectContaining({ code: "E_CONFIG", message: expect.stringContaining("doNotTranslte") }),
+    );
+    expect(() => parseConfig({ ...minimal, targetLocale: ["ru"] })).toThrow("targetLocale");
+    expect(() => parseConfig({ ...minimal, translator: { provider: "anthropic", modle: "x" } })).toThrow("modle");
+    expect(() => parseConfig({ ...minimal, stores: { play: { packageName: "a", appId: "1" } } })).toThrow("appId");
+    expect(() => parseConfig({ ...minimal, paths: { android: "x" } })).toThrow("android");
+  });
+
+  it("still accepts $schema", () => {
+    expect(parseConfig({ $schema: "https://example.com/schema.json", ...minimal }).sourceLocale).toBe("en-US");
+  });
+
+  it("hints at the supported locale codes instead of a source file", () => {
+    try {
+      parseConfig({ ...minimal, targetLocales: ["xx"] });
+      expect.unreachable();
+    } catch (err) {
+      const hint = (err as StorelingoError).hint ?? "";
+      expect(hint).toContain("en-US");
+      expect(hint).toContain("zh-Hant");
+      expect(hint).not.toContain("src/");
+    }
+  });
+
   it("reports the path of an invalid field", () => {
     expect(() => parseConfig({ ...minimal, translator: { provider: "anthropic", concurrency: 0 } })).toThrow(
       "translator.concurrency",
@@ -81,6 +113,13 @@ describe("loadConfig", () => {
     await writeFile(file, JSON.stringify(minimal));
     const config = await loadConfig(file);
     expect(config.targetLocales).toEqual(["ru", "de"]);
+  });
+
+  it("reads a config file that starts with a UTF-8 BOM", async () => {
+    const dir = await makeTmpDir();
+    const file = join(dir, CONFIG_FILE);
+    await writeFile(file, `${String.fromCharCode(0xfeff)}${JSON.stringify(minimal)}`, "utf8");
+    expect((await loadConfig(file)).sourceLocale).toBe("en-US");
   });
 
   it("explains a missing file", async () => {

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { StorelingoError } from "../errors.js";
-import { findLocale } from "../locales/table.js";
+import { LOCALES, findLocale } from "../locales/table.js";
 import { ConfigSchema, type Config } from "./schema.js";
 
 export const CONFIG_FILE = "storelingo.config.json";
@@ -20,7 +20,7 @@ export function parseConfig(raw: unknown): Config {
     throw new StorelingoError(
       "E_CONFIG",
       `Unknown locale code(s): ${unknown.join(", ")}`,
-      "See the locale table in src/locales/table.ts for supported codes.",
+      `Supported codes: ${LOCALES.map((l) => l.code).join(", ")} (see Supported languages in the README).`,
     );
   }
   if (config.targetLocales.includes(config.sourceLocale)) {
@@ -45,7 +45,7 @@ export async function loadConfig(file: string): Promise<Config> {
   }
   let raw: unknown;
   try {
-    raw = JSON.parse(text.replace(/^﻿/, ""));
+    raw = JSON.parse(text.replace(/^\uFEFF/, ""));
   } catch {
     throw new StorelingoError("E_CONFIG", `Config file is not valid JSON: ${file}`);
   }

@@ -55,7 +55,7 @@ const NAME_FIELDS = ["name", "subtitle"];
 
 export async function runTranslate(opts: TranslateOptions): Promise<TranslateReport> {
   const { config, cwd, translator, log } = opts;
-  const targets = opts.locales ?? config.targetLocales;
+  const targets = [...new Set(opts.locales ?? config.targetLocales)];
   const outside = targets.filter((l) => !config.targetLocales.includes(l));
   if (outside.length > 0) {
     throw new StorelingoError(
