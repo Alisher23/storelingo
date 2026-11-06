@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { LOCK_FILE, decide, hashText, loadLock, lockKey, saveLock } from "../../src/lock/lock.js";
@@ -60,6 +60,13 @@ describe("loadLock / saveLock", () => {
     expect(text.indexOf("appstore/ru/name")).toBeLessThan(text.indexOf("play/ru-RU/title"));
     expect(text.endsWith("\n")).toBe(true);
     expect((await loadLock(file)).entries["play/ru-RU/title"]).toEqual(entry);
+  });
+
+  it("saves atomically and leaves no temp file behind", async () => {
+    const dir = await makeTmpDir();
+    const file = join(dir, LOCK_FILE);
+    await saveLock(file, { version: 1, entries: { "play/ru-RU/title": entry } });
+    expect(await readdir(dir)).toEqual([LOCK_FILE]);
   });
 
   it("strips a UTF-8 BOM when reading", async () => {

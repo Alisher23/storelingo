@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { runTranslate } from "../../src/commands/translate.js";
@@ -126,6 +126,27 @@ describe("runTranslate", () => {
     expect(report.translated).toBe(1);
     expect(report.failed).toEqual([
       { store: "play", locale: "ru-RU", field: "title", message: "40 characters, limit is 30" },
+    ]);
+  });
+
+  it("survives a write failure: records it, keeps other fields and persists their lock entries", async () => {
+    const { cwd, config: cfg } = await makeProject(files, config);
+    // Turn the target path into a directory once planning is done, so writeFile fails with EISDIR.
+    const { translator } = fakeTranslator(async (req) => {
+      if (req.targetLocale.code === "de") await mkdir(join(cwd, P, "de-DE", "title.txt"), { recursive: true });
+    });
+    const report = await runTranslate({ config: cfg, cwd, translator, log: silent });
+
+    expect(report.translated).toBe(3);
+    expect(report.failed).toHaveLength(1);
+    expect(report.failed[0]).toMatchObject({ store: "play", locale: "de-DE", field: "title" });
+    expect(await readFile(join(cwd, P, "de-DE", "short_description.txt"), "utf8")).toBe("[de] Accurate times");
+
+    const lock = await loadLock(join(cwd, LOCK_FILE));
+    expect(Object.keys(lock.entries).sort()).toEqual([
+      "play/de-DE/short_description",
+      "play/ru-RU/short_description",
+      "play/ru-RU/title",
     ]);
   });
 });

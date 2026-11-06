@@ -118,9 +118,19 @@ export async function runTranslate(opts: TranslateOptions): Promise<TranslateRep
     }
   }
 
+  const errMsg = (err: unknown) => (err instanceof Error ? err.message : String(err));
   let saving: Promise<void> = Promise.resolve();
-  const persistLock = () => {
-    saving = saving.then(() => saveLock(lockFile, lock));
+  let saveFailureReported = false;
+  const persistLock = (job: Job) => {
+    saving = saving.then(() => saveLock(lockFile, lock)).catch((err: unknown) => {
+      if (saveFailureReported) return;
+      saveFailureReported = true;
+      report.failed.push({
+        store: job.store,
+        locale: job.storeLocale,
+        message: `could not save ${LOCK_FILE}: ${errMsg(err)}`,
+      });
+    });
     return saving;
   };
 
@@ -138,7 +148,7 @@ export async function runTranslate(opts: TranslateOptions): Promise<TranslateRep
         terms: config.glossary.terms[job.target.code] ?? {},
       });
     } catch (err) {
-      report.failed.push({ store: job.store, locale: job.storeLocale, message: (err as Error).message });
+      report.failed.push({ store: job.store, locale: job.storeLocale, message: errMsg(err) });
       return;
     }
     report.usage = addUsage(report.usage, result.usage);
@@ -155,14 +165,19 @@ export async function runTranslate(opts: TranslateOptions): Promise<TranslateRep
         continue;
       }
       const output = `${text}${field.trailing}`;
-      await writeField(job.root, job.storeLocale, field.rel, output);
+      try {
+        await writeField(job.root, job.storeLocale, field.rel, output);
+      } catch (err) {
+        report.failed.push({ store: job.store, locale: job.storeLocale, field: field.key, message: errMsg(err) });
+        continue;
+      }
       lock.entries[lockKey(job.store, job.storeLocale, field.key)] = {
         sourceHash: hashText(field.source),
         outputHash: hashText(output),
       };
       report.translated++;
+      await persistLock(job);
     }
-    await persistLock();
   });
 
   await saving;
