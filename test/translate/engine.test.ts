@@ -30,6 +30,23 @@ describe("createTranslator", () => {
     expect(completeJson.mock.calls[0]![0].keys).toEqual(["name"]);
   });
 
+  it("strips a BOM and normalizes CRLF/CR line breaks in model output", async () => {
+    const BOM = String.fromCharCode(0xfeff);
+    const { llm } = fakeLlm(reply({ name: `${BOM}Gebet\r\nZeiten\rheute` }));
+    const result = await createTranslator(llm).translate({
+      ...base,
+      fields: [{ key: "name", text: "Prayer\nTimes\ntoday", maxChars: 30, kind: "text" }],
+    });
+    expect(result.texts.name).toBe("Gebet\nZeiten\nheute");
+  });
+
+  it("reports an empty reply for a non-empty source instead of returning it", async () => {
+    const { llm } = fakeLlm(reply({ name: " \n " }));
+    const result = await createTranslator(llm).translate(base);
+    expect(result.texts).toEqual({});
+    expect(result.errors.name).toBe("empty translation");
+  });
+
   it("retries once on an invalid response", async () => {
     const { llm, completeJson } = fakeLlm(reply(undefined), reply({ name: "Gebetszeiten" }));
     const result = await createTranslator(llm).translate(base);

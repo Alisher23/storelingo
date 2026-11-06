@@ -164,9 +164,10 @@ export async function runTranslate(opts: TranslateOptions): Promise<TranslateRep
         });
         continue;
       }
-      const output = `${text}${field.trailing}`;
+      let output: string;
       try {
-        await writeField(job.root, job.storeLocale, field.rel, output);
+        // Hash exactly what writeField put on disk (it normalizes BOM and line endings).
+        output = await writeField(job.root, job.storeLocale, field.rel, `${text}${field.trailing}`);
       } catch (err) {
         report.failed.push({ store: job.store, locale: job.storeLocale, field: field.key, message: errMsg(err) });
         continue;

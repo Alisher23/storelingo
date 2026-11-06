@@ -101,7 +101,8 @@ export function decide(args: {
 }): Decision {
   const { source, target, entry, force } = args;
   if (source === undefined || source.trim() === "") return "skip-empty-source";
-  if (force || target === undefined) return "translate";
+  // An empty or whitespace-only target counts as missing, never as a manual edit.
+  if (force || target === undefined || target.trim() === "") return "translate";
   if (!entry || hashText(target) !== entry.outputHash) return "skip-manual-edit";
   if (entry.sourceHash === hashText(source)) return "skip-unchanged";
   return "translate";

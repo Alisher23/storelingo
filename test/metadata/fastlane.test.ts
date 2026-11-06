@@ -80,6 +80,13 @@ describe("readField / writeField", () => {
     expect(await readField(r, "en-US", "title.txt")).toBe("Line1\nLine2");
   });
 
+  it("writes LF-only text without BOM and returns exactly what it wrote", async () => {
+    const r = await makeRoot();
+    const BOM = String.fromCharCode(0xfeff);
+    expect(await writeField(r, "ru", "description.txt", `${BOM}a\r\nb\rc\n`)).toBe("a\nb\nc\n");
+    expect(await readFile(join(r.root, "ru", "description.txt"), "utf8")).toBe("a\nb\nc\n");
+  });
+
   it("returns undefined for a missing file", async () => {
     const r = await makeRoot();
     expect(await readField(r, "en-US", "title.txt")).toBeUndefined();

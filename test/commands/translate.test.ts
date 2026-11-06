@@ -74,6 +74,31 @@ describe("runTranslate", () => {
     expect(second.calls).toHaveLength(0);
   });
 
+  it("writes model output with CRLF as LF and reports it unchanged on the next run", async () => {
+    const { cwd, config: cfg } = await makeProject(files, { ...config, targetLocales: ["ru"] });
+    const crlf: Translator = {
+      translate: async (req) => ({
+        texts: Object.fromEntries(req.fields.map((f) => [f.key, "a\r\nb"])),
+        errors: {},
+        usage: { inputTokens: 1, outputTokens: 1 },
+      }),
+    };
+    await runTranslate({ config: cfg, cwd, translator: crlf, log: silent });
+    expect(await readFile(join(cwd, P, "ru-RU", "short_description.txt"), "utf8")).toBe("a\nb");
+    const second = await runTranslate({ config: cfg, cwd, translator: crlf, log: silent });
+    expect(second).toMatchObject({ translated: 0, unchanged: 2, manual: 0 });
+  });
+
+  it("translates into an empty pre-existing target file", async () => {
+    const { cwd, config: cfg } = await makeProject(
+      { ...files, [`${P}/ru-RU/title.txt`]: "  \n" },
+      { ...config, targetLocales: ["ru"] },
+    );
+    const report = await runTranslate({ config: cfg, cwd, translator: fakeTranslator().translator, log: silent });
+    expect(report).toMatchObject({ translated: 2, manual: 0 });
+    expect(await readFile(join(cwd, P, "ru-RU", "title.txt"), "utf8")).toBe("[ru] Prayer Times\n");
+  });
+
   it("protects manual edits unless --force", async () => {
     const { cwd, config: cfg } = await makeProject(files, config);
     await runTranslate({ config: cfg, cwd, translator: fakeTranslator().translator, log: silent });

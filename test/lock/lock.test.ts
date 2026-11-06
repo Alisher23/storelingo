@@ -28,6 +28,10 @@ describe("decide", () => {
     expect(decide({ source: src, target: undefined, entry: undefined, force: false })).toBe("translate");
     expect(decide({ source: src, target: undefined, entry, force: false })).toBe("translate");
   });
+  it("treats an empty or whitespace-only target as missing", () => {
+    expect(decide({ source: src, target: "", entry: undefined, force: false })).toBe("translate");
+    expect(decide({ source: src, target: " \n\t", entry, force: false })).toBe("translate");
+  });
   it("skips when nothing changed", () => {
     expect(decide({ source: src, target: out, entry, force: false })).toBe("skip-unchanged");
   });

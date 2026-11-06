@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { StorelingoError } from "../errors.js";
 import { countChars } from "../util/chars.js";
+import { normalizeText } from "../util/text.js";
 import { normalizeKeywords } from "./keywords.js";
 import { SYSTEM_PROMPT, buildShortenPrompt, buildTranslatePrompt } from "./prompt.js";
 import {
@@ -50,8 +51,10 @@ export function createTranslator(llm: LlmClient, opts: { maxShortenAttempts?: nu
       const errors: Record<string, string> = {};
 
       const finish = async (field: FieldToTranslate, initial: string, exclude: string[]): Promise<void> => {
-        const clean = (text: string): string =>
-          field.kind === "keywords" ? normalizeKeywords(text.trim(), exclude) : text.trim();
+        const clean = (text: string): string => {
+          const normalized = normalizeText(text).trim();
+          return field.kind === "keywords" ? normalizeKeywords(normalized, exclude) : normalized;
+        };
         let text = clean(initial);
         if (field.maxChars !== null) {
           for (let i = 0; i < maxShorten && countChars(text) > field.maxChars; i++) {
@@ -68,6 +71,10 @@ export function createTranslator(llm: LlmClient, opts: { maxShortenAttempts?: nu
             errors[field.key] = `${countChars(text)} characters, limit is ${field.maxChars}`;
             return;
           }
+        }
+        if (text === "" && field.text.trim() !== "") {
+          errors[field.key] = "empty translation";
+          return;
         }
         texts[field.key] = text;
       };

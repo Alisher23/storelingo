@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Config } from "../config/schema.js";
 import { StorelingoError } from "../errors.js";
 import type { FieldDef, StoreId } from "../fields/registry.js";
+import { normalizeText } from "../util/text.js";
 
 export const DEFAULT_ROOTS: Record<StoreId, string> = {
   play: "fastlane/metadata/android",
@@ -122,17 +123,19 @@ export async function readField(r: StoreRoot, storeLocale: string, relPath: stri
   const file = filePath(r, storeLocale, relPath);
   await assertSafePath(r.projectRoot, file);
   try {
-    const raw = await readFile(file, "utf8");
-    return raw.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
+    return normalizeText(await readFile(file, "utf8"));
   } catch (err) {
     if (isNotFound(err)) return undefined;
     throw err;
   }
 }
 
-export async function writeField(r: StoreRoot, storeLocale: string, relPath: string, text: string): Promise<void> {
+/** Writes `text` normalized (no BOM, LF only) and returns exactly what was written, for hashing. */
+export async function writeField(r: StoreRoot, storeLocale: string, relPath: string, text: string): Promise<string> {
   const target = filePath(r, storeLocale, relPath);
   await assertSafePath(r.projectRoot, target);
+  const output = normalizeText(text);
   await mkdir(dirname(target), { recursive: true });
-  await writeFile(target, text, "utf8");
+  await writeFile(target, output, "utf8");
+  return output;
 }
