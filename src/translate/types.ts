@@ -28,6 +28,8 @@ export interface TranslateRequest {
   doNotTranslate: string[];
   /** Preferred translations for this target locale: source term → target term. */
   terms: Record<string, string>;
+  /** Existing target name/subtitle texts (not re-translated here) whose words keywords must not repeat. */
+  excludeWords?: string[];
 }
 
 export interface TranslateResult {

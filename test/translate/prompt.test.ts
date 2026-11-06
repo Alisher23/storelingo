@@ -51,13 +51,32 @@ describe("SYSTEM_PROMPT", () => {
 
 describe("buildShortenPrompt", () => {
   it("states the current length and the limit", () => {
-    const p = buildShortenPrompt({ text: "Очень длинный текст", maxChars: 10, language: findLocale("ru")!, kind: "text" });
+    const p = buildShortenPrompt({
+      text: "Очень длинный текст",
+      maxChars: 10,
+      language: findLocale("ru")!,
+      kind: "text",
+      doNotTranslate: [],
+    });
     expect(p).toContain("19 characters");
     expect(p).toContain("at most 10 characters");
     expect(p).toContain('one key, "text"');
   });
   it("mentions the keyword format for keywords", () => {
-    const p = buildShortenPrompt({ text: "a,b", maxChars: 2, language: findLocale("ru")!, kind: "keywords" });
-    expect(p).toContain("comma-separated");
+    const p = buildShortenPrompt({
+      text: "a,b",
+      maxChars: 2,
+      language: findLocale("ru")!,
+      kind: "keywords",
+      doNotTranslate: [],
+    });
+    expect(p).toContain("comma-separated with no spaces after commas");
+  });
+  it("repeats the do-not-translate list", () => {
+    const args = { text: "Quran Widgets x", maxChars: 5, language: findLocale("ru")!, kind: "text" as const };
+    expect(buildShortenPrompt({ ...args, doNotTranslate: ["Quran Widgets"] })).toContain(
+      "Do not translate: Quran Widgets",
+    );
+    expect(buildShortenPrompt({ ...args, doNotTranslate: [] })).not.toContain("Do not translate");
   });
 });

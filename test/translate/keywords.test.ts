@@ -16,4 +16,8 @@ describe("normalizeKeywords", () => {
       "prayer times",
     );
   });
+  it("splits name/subtitle on punctuation as well as whitespace", () => {
+    expect(normalizeKeywords("prayer,times,qibla,dua", ["Prayer Times: Qibla"])).toBe("dua");
+    expect(normalizeKeywords("quran,kompass,azan", ["Quran-Kompass (Azan)"])).toBe("");
+  });
 });

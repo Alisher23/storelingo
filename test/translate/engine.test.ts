@@ -110,6 +110,38 @@ describe("createTranslator", () => {
     expect(completeJson).toHaveBeenCalledTimes(2);
   });
 
+  it("also excludes words of the existing name/subtitle passed in excludeWords", async () => {
+    const { llm } = fakeLlm(reply({ keywords: "gebetszeiten,qibla,koran" }));
+    const result = await createTranslator(llm).translate({
+      ...base,
+      fields: [{ key: "keywords", text: "prayer,qibla,quran", maxChars: 100, kind: "keywords" }],
+      excludeWords: ["Gebetszeiten", "Koran & Qibla"],
+    });
+    expect(result.errors).toEqual({ keywords: "empty translation" });
+  });
+
+  it("merges excludeWords with the freshly translated name", async () => {
+    const { llm } = fakeLlm(reply({ name: "Gebet", keywords: "gebet,koran,qibla" }));
+    const result = await createTranslator(llm).translate({
+      ...base,
+      fields: [
+        { key: "name", text: "Prayer", maxChars: 30, kind: "text" },
+        { key: "keywords", text: "prayer,quran,qibla", maxChars: 100, kind: "keywords" },
+      ],
+      excludeWords: ["Koran"],
+    });
+    expect(result.texts.keywords).toBe("qibla");
+  });
+
+  it("passes doNotTranslate to the shorten prompt", async () => {
+    const { llm, completeJson } = fakeLlm(
+      reply({ name: "Quran Widgets Gebetszeiten und Qibla-Kompass" }),
+      reply({ text: "Quran Widgets Gebet" }),
+    );
+    await createTranslator(llm).translate({ ...base, doNotTranslate: ["Quran Widgets"] });
+    expect(completeJson.mock.calls[1]![0].user).toContain("Do not translate: Quran Widgets");
+  });
+
   it("does not limit fields without maxChars", async () => {
     const { llm, completeJson } = fakeLlm(reply({ name: "y".repeat(100) }));
     const result = await createTranslator(llm).translate({

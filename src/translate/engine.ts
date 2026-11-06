@@ -60,7 +60,13 @@ export function createTranslator(llm: LlmClient, opts: { maxShortenAttempts?: nu
           for (let i = 0; i < maxShorten && countChars(text) > field.maxChars; i++) {
             const res = await llm.completeJson({
               system: SYSTEM_PROMPT,
-              user: buildShortenPrompt({ text, maxChars: field.maxChars, language: req.targetLocale, kind: field.kind }),
+              user: buildShortenPrompt({
+                text,
+                maxChars: field.maxChars,
+                language: req.targetLocale,
+                kind: field.kind,
+                doNotTranslate: req.doNotTranslate,
+              }),
               keys: ["text"],
             });
             usage = addUsage(usage, res.usage);
@@ -83,9 +89,10 @@ export function createTranslator(llm: LlmClient, opts: { maxShortenAttempts?: nu
       for (const field of req.fields.filter((f) => f.kind !== "keywords")) {
         await finish(field, raw[field.key] ?? "", []);
       }
-      const nameWords = ["name", "subtitle"]
-        .map((key) => texts[key])
-        .filter((s): s is string => s !== undefined);
+      const nameWords = [
+        ...(req.excludeWords ?? []),
+        ...["name", "subtitle"].map((key) => texts[key]).filter((s): s is string => s !== undefined),
+      ];
       for (const field of req.fields.filter((f) => f.kind === "keywords")) {
         await finish(field, raw[field.key] ?? "", nameWords);
       }

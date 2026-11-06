@@ -3,7 +3,7 @@ const SEPARATORS = /[,，、]/;
 /** Normalizes App Store keywords: "a,b,c", no spaces after commas, no duplicates. */
 export function normalizeKeywords(raw: string, exclude: string[] = []): string {
   const excluded = new Set(
-    exclude.flatMap((s) => s.toLowerCase().split(/[\s,，、]+/)).filter((w) => w.length > 0),
+    exclude.flatMap((s) => s.toLowerCase().split(/[\s\p{P}]+/u)).filter((w) => w.length > 0),
   );
   const seen = new Set<string>();
   const out: string[] = [];

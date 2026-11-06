@@ -99,6 +99,23 @@ describe("runTranslate", () => {
     expect(await readFile(join(cwd, P, "ru-RU", "title.txt"), "utf8")).toBe("[ru] Prayer Times\n");
   });
 
+  it("passes the target's existing name/subtitle as keyword exclusions when they are not re-translated", async () => {
+    const A = "fastlane/metadata";
+    const { cwd, config: cfg } = await makeProject(
+      {
+        [`${A}/en-US/name.txt`]: "Prayer Times",
+        [`${A}/en-US/subtitle.txt`]: "Qibla finder",
+        [`${A}/en-US/keywords.txt`]: "quran,qibla",
+        [`${A}/ru/name.txt`]: "Время намаза", // edited by hand: not re-translated
+      },
+      { ...config, targetLocales: ["ru"], stores: { appstore: { appId: "1" } } },
+    );
+    const { translator, calls } = fakeTranslator();
+    await runTranslate({ config: cfg, cwd, translator, log: silent });
+    expect(calls[0]!.fields.map((f) => f.key)).toEqual(["subtitle", "keywords"]);
+    expect(calls[0]!.excludeWords).toEqual(["Время намаза"]);
+  });
+
   it("protects manual edits unless --force", async () => {
     const { cwd, config: cfg } = await makeProject(files, config);
     await runTranslate({ config: cfg, cwd, translator: fakeTranslator().translator, log: silent });

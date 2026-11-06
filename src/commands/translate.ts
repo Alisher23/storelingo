@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { Config } from "../config/schema.js";
 import { StorelingoError } from "../errors.js";
-import { fieldsFor, type StoreId } from "../fields/registry.js";
+import { fieldsFor, getField, type StoreId } from "../fields/registry.js";
 import { findLocale, toStoreLocale, type LocaleDef } from "../locales/table.js";
 import { LOCK_FILE, decide, hashText, loadLock, lockKey, saveLock } from "../lock/lock.js";
 import type { Logger } from "../log.js";
@@ -47,7 +47,11 @@ interface Job {
   storeLocale: string;
   target: LocaleDef;
   fields: PendingField[];
+  excludeWords: string[];
 }
+
+/** App Store fields whose words keywords must not repeat. */
+const NAME_FIELDS = ["name", "subtitle"];
 
 export async function runTranslate(opts: TranslateOptions): Promise<TranslateReport> {
   const { config, cwd, translator, log } = opts;
@@ -113,7 +117,16 @@ export async function runTranslate(opts: TranslateOptions): Promise<TranslateRep
         });
       }
       if (fields.length > 0) {
-        jobs.push({ store, root, storeLocale, target: findLocale(code) as LocaleDef, fields });
+        const excludeWords: string[] = [];
+        if (fields.some((f) => f.kind === "keywords")) {
+          // Keywords must not repeat the name/subtitle; those not re-translated now keep their current text.
+          for (const key of NAME_FIELDS) {
+            if (fields.some((f) => f.key === key)) continue;
+            const existing = await readField(root, storeLocale, getField(store, key).file);
+            if (existing !== undefined && existing.trim() !== "") excludeWords.push(existing.trim());
+          }
+        }
+        jobs.push({ store, root, storeLocale, target: findLocale(code) as LocaleDef, fields, excludeWords });
       }
     }
   }
@@ -146,6 +159,7 @@ export async function runTranslate(opts: TranslateOptions): Promise<TranslateRep
         context: config.context,
         doNotTranslate: config.glossary.doNotTranslate,
         terms: config.glossary.terms[job.target.code] ?? {},
+        excludeWords: job.excludeWords,
       });
     } catch (err) {
       report.failed.push({ store: job.store, locale: job.storeLocale, message: errMsg(err) });

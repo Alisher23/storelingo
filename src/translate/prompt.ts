@@ -47,12 +47,16 @@ export function buildShortenPrompt(args: {
   maxChars: number;
   language: LocaleDef;
   kind: FieldKind;
+  doNotTranslate: string[];
 }): string {
-  const format = args.kind === "keywords" ? " and the comma-separated keyword format" : "";
+  const format = args.kind === "keywords" ? " and the keyword format: comma-separated with no spaces after commas" : "";
   return [
     `This ${args.language.name} app store text is ${countChars(args.text)} characters, but the limit is ${args.maxChars}.`,
     `Rewrite it in ${args.language.name} to at most ${args.maxChars} characters, keeping the most important meaning${format}.`,
+    args.doNotTranslate.length > 0 ? `Do not translate: ${args.doNotTranslate.join(", ")}` : "",
     `Text:\n${args.text}`,
     'Return a JSON object with one key, "text".',
-  ].join("\n\n");
+  ]
+    .filter((section) => section.length > 0)
+    .join("\n\n");
 }
