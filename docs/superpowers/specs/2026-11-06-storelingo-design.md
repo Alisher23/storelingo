@@ -104,7 +104,7 @@ interface StoreClient {
   - `marketing_url.txt`, `support_url.txt`, `privacy_url.txt`
   - При чтении iOS-локалей игнорируются папки `android`, `default`, `review_information`, `trade_representative_contact_information`.
 
-Пути переопределяются в конфиге (`paths.play`, `paths.appstore`). Файлы пишутся в UTF-8 без BOM, с `\n`. Хвостовой перевод строки сохраняется таким, каким был в исходнике.
+Пути переопределяются в конфиге (`paths.play`, `paths.appstore`) и обязаны оставаться внутри проекта: абсолютные пути и выход через `..` отклоняются (`E_CONFIG`). Пути и lock-файл считаются от текущей папки (cwd). Инструмент не следует по символическим ссылкам при чтении и записи метаданных и lock-файла (`E_CONFIG`), так как конфиг и файлы могут прийти из чужого репозитория. Файлы пишутся в UTF-8 без BOM, с `\n` (переводы строк из ответа модели нормализуются до записи и хэширования). Хвостовой перевод строки сохраняется таким, каким был в исходнике.
 
 ### 5.2 Лимиты (данные в `fields/`)
 
@@ -129,7 +129,6 @@ interface StoreClient {
 
 ```json
 {
-  "$schema": "https://unpkg.com/storelingo/schema.json",
   "sourceLocale": "en-US",
   "targetLocales": ["ru", "de", "tr", "ar", "uz"],
   "stores": {
@@ -165,7 +164,7 @@ interface StoreClient {
 | `ANTHROPIC_API_KEY` | Claude API |
 | `OPENAI_API_KEY` | только для `baseUrl` на `api.openai.com` |
 | `STORELINGO_TRANSLATOR_API_KEY` | ключ для любого другого OpenAI-совместимого хоста (OpenRouter и т.п.); для Ollama не нужен |
-| `STORELINGO_TRANSLATOR_API_HOST` | хост, которому разрешено отправлять `STORELINGO_TRANSLATOR_API_KEY` (например `openrouter.ai`); если ключ задан, а хост `baseUrl` не совпадает — `E_CONFIG` |
+| `STORELINGO_TRANSLATOR_API_HOST` | хост, которому разрешено отправлять запросы OpenAI-совместимого провайдера (например `openrouter.ai`). Для любого не-loopback хоста, кроме `api.openai.com`, он **обязателен и должен совпадать** с хостом `baseUrl` даже без ключа — иначе `E_CONFIG` (чужой конфиг не может отправить тексты на произвольный сервер). `STORELINGO_TRANSLATOR_API_KEY` отправляется только на этот хост. |
 | `STORELINGO_PLAY_SERVICE_ACCOUNT` | путь к JSON сервисного аккаунта Google **или** сам JSON |
 | `STORELINGO_ASC_ISSUER_ID`, `STORELINGO_ASC_KEY_ID` | App Store Connect API |
 | `STORELINGO_ASC_PRIVATE_KEY` | путь к `.p8` **или** его содержимое |
@@ -195,6 +194,7 @@ Lock-файл коммитится в git, чтобы CI и соавторы р�
 Для каждого (магазин, локаль, поле), где `translatable = true`, принимается одно решение:
 
 - исходный файл пуст или отсутствует → пропустить;
+- целевой файл отсутствует **или пуст (только пробелы)** → считается отсутствующим (переводить);
 - целевой файл существует и его хэш ≠ `outputHash` → **изменён вручную**: пропустить, сообщить (кроме `--force`);
 - `sourceHash` совпадает с текущим и целевой файл существует → без изменений: пропустить;
 - иначе → перевести.
