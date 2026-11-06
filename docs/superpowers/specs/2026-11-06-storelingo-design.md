@@ -153,6 +153,7 @@ interface StoreClient {
 
 - `targetLocales` задаются в «общих» кодах. Перевод в коды каждого магазина делает `locales/`. Если магазин не поддерживает язык (например, App Store не поддерживает `ky`), язык пропускается для этого магазина с предупреждением.
 - `provider: "openai-compatible"` дополнительно требует `baseUrl` (OpenAI, OpenRouter, Gemini OpenAI-endpoint, Ollama).
+- **Защита ключа от чужого `baseUrl`** (конфиг может прийти из чужого репозитория): `OPENAI_API_KEY` отправляется только на хост `api.openai.com`. Для любого другого хоста ключ берётся только из явной `STORELINGO_TRANSLATOR_API_KEY`. Не-loopback `baseUrl` обязан быть `https://`; `http://` разрешён только для `localhost`, `127.0.0.1`, `[::1]`.
 - Default для Claude: модель `claude-opus-5-5`, `effort: "medium"` (у этой модели thinking не отключается, глубину задаёт effort). Пользователь может указать любую модель, например `claude-sonnet-5-5` или `claude-haiku-5-5` для экономии.
 - Адаптер Claude включает серверный fallback при отказе модели (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`) и проверяет `stop_reason` (`refusal`, `max_tokens`) до чтения ответа. Ретраи 429/5xx делает сам SDK (`maxRetries`).
 - JSON-ответ запрашивается через structured outputs: `output_config.format = { type: "json_schema", schema }`.
@@ -162,7 +163,8 @@ interface StoreClient {
 | Переменная | Назначение |
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API |
-| `OPENAI_API_KEY` | OpenAI-совместимый провайдер (для Ollama может быть пустым) |
+| `OPENAI_API_KEY` | только для `baseUrl` на `api.openai.com` |
+| `STORELINGO_TRANSLATOR_API_KEY` | ключ для любого другого OpenAI-совместимого хоста (OpenRouter и т.п.); для Ollama не нужен |
 | `STORELINGO_PLAY_SERVICE_ACCOUNT` | путь к JSON сервисного аккаунта Google **или** сам JSON |
 | `STORELINGO_ASC_ISSUER_ID`, `STORELINGO_ASC_KEY_ID` | App Store Connect API |
 | `STORELINGO_ASC_PRIVATE_KEY` | путь к `.p8` **или** его содержимое |
