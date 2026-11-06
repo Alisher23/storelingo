@@ -132,4 +132,13 @@ describe("loadLock / saveLock", () => {
     await writeFile(file, '{"version": 9}');
     await expect(loadLock(file)).rejects.toMatchObject({ code: "E_CONFIG" });
   });
+
+  it("points to git first and warns that --force overwrites manual edits", async () => {
+    const dir = await makeTmpDir();
+    const file = join(dir, LOCK_FILE);
+    await writeFile(file, "<<<<<<< HEAD");
+    const err = await loadLock(file).catch((e: unknown) => e);
+    expect((err as { hint: string }).hint).toMatch(/restore it from git/);
+    expect((err as { hint: string }).hint).toMatch(/overwrites manual edits/);
+  });
 });

@@ -108,6 +108,13 @@ describe("resolveFieldPath", () => {
     expect(await resolveFieldPath(r, "en-US", getField("play", "changelog"))).toBe("changelogs/12.txt");
   });
 
+  it("returns the original file name of the highest changelog (zero-padded names)", async () => {
+    const r = await makeRoot();
+    await mkdir(join(r.root, "en-US", "changelogs"), { recursive: true });
+    for (const f of ["5.txt", "007.txt"]) await writeFile(join(r.root, "en-US", "changelogs", f), "x");
+    expect(await resolveFieldPath(r, "en-US", getField("play", "changelog"))).toBe("changelogs/007.txt");
+  });
+
   it("returns undefined when there are no changelogs", async () => {
     const r = await makeRoot();
     expect(await resolveFieldPath(r, "en-US", getField("play", "changelog"))).toBeUndefined();

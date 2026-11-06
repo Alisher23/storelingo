@@ -76,7 +76,7 @@ export async function main(argv: string[], deps: CliDeps = defaultDeps()): Promi
       const log = logger();
       const answers = await (deps.promptInit ?? promptInitAnswers)();
       const created = await writeInitFiles(deps.cwd, answers, { force: opts.force });
-      for (const path of created) log.info(`created ${path}`);
+      for (const change of created) log.info(`${change.action} ${change.path}`);
       log.info(
         "Set ANTHROPIC_API_KEY (Claude), or for OpenAI-compatible: OPENAI_API_KEY for api.openai.com, " +
           "otherwise STORELINGO_TRANSLATOR_API_KEY + STORELINGO_TRANSLATOR_API_HOST.",

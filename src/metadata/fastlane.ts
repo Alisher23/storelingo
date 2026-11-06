@@ -111,12 +111,15 @@ export async function resolveFieldPath(
     if (isNotFound(err)) return undefined;
     throw err;
   }
-  const versions = names
-    .map((n) => /^(\d+)\.txt$/.exec(n)?.[1])
-    .filter((v): v is string => v !== undefined)
-    .map(Number);
-  if (versions.length === 0) return undefined;
-  return `${field.file}/${Math.max(...versions)}.txt`;
+  // Highest version code wins; keep the file's own name (e.g. "007.txt"), not the parsed number.
+  let best: { name: string; version: number } | undefined;
+  for (const name of [...names].sort()) {
+    const digits = /^(\d+)\.txt$/.exec(name)?.[1];
+    if (digits === undefined) continue;
+    const version = Number(digits);
+    if (!best || version > best.version) best = { name, version };
+  }
+  return best ? `${field.file}/${best.name}` : undefined;
 }
 
 export async function readField(r: StoreRoot, storeLocale: string, relPath: string): Promise<string | undefined> {

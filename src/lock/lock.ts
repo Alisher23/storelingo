@@ -67,7 +67,8 @@ export async function loadLock(file: string): Promise<Lock> {
     throw new StorelingoError(
       "E_CONFIG",
       `Lock file is corrupt: ${file}`,
-      "Delete it and run `npx storelingo translate --force` to rebuild.",
+      "Resolve the merge conflict or restore it from git. Deleting it and running " +
+        "`npx storelingo translate --force` re-translates everything and overwrites manual edits.",
     );
   }
   return parsed.data;

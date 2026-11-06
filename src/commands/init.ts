@@ -18,6 +18,11 @@ export interface InitAnswers {
   context: string;
 }
 
+export interface InitChange {
+  action: "created" | "updated";
+  path: string;
+}
+
 const GITIGNORE_LINES = ["*.p8", "play-service-account*.json"];
 
 export function buildConfigJson(a: InitAnswers): Record<string, unknown> {
@@ -29,7 +34,6 @@ export function buildConfigJson(a: InitAnswers): Record<string, unknown> {
       ? { provider: "anthropic", ...(a.model ? { model: a.model } : {}) }
       : { provider: "openai-compatible", baseUrl: a.baseUrl, model: a.model };
   return {
-    $schema: "https://unpkg.com/storelingo/schema.json",
     sourceLocale: a.sourceLocale,
     targetLocales: a.targetLocales,
     stores,
@@ -52,7 +56,7 @@ export async function writeInitFiles(
   cwd: string,
   answers: InitAnswers,
   opts: { force?: boolean } = {},
-): Promise<string[]> {
+): Promise<InitChange[]> {
   const json = buildConfigJson(answers);
   const config = parseConfig(json); // validate before touching disk
   const configPath = join(cwd, CONFIG_FILE);
@@ -60,9 +64,9 @@ export async function writeInitFiles(
     throw new StorelingoError("E_USAGE", `${CONFIG_FILE} already exists`, "Use `storelingo init --force` to overwrite it.");
   }
 
-  const created: string[] = [];
+  const created: InitChange[] = [];
   await writeFile(configPath, `${JSON.stringify(json, null, 2)}\n`, "utf8");
-  created.push(CONFIG_FILE);
+  created.push({ action: "created", path: CONFIG_FILE });
 
   for (const store of ["play", "appstore"] as StoreId[]) {
     if (!config.stores[store]) continue;
@@ -70,17 +74,18 @@ export async function writeInitFiles(
     if (!storeLocale) continue;
     const rel = `${DEFAULT_ROOTS[store]}/${storeLocale}`;
     await mkdir(join(cwd, ...rel.split("/")), { recursive: true });
-    created.push(rel);
+    created.push({ action: "created", path: rel });
   }
 
   const gitignorePath = join(cwd, ".gitignore");
-  const current = (await exists(gitignorePath)) ? await readFile(gitignorePath, "utf8") : "";
+  const hadGitignore = await exists(gitignorePath);
+  const current = hadGitignore ? await readFile(gitignorePath, "utf8") : "";
   const present = new Set(current.split(/\r?\n/).map((l) => l.trim()));
   const missing = GITIGNORE_LINES.filter((l) => !present.has(l));
   if (missing.length > 0) {
     const prefix = current.length > 0 && !current.endsWith("\n") ? "\n" : "";
     await writeFile(gitignorePath, `${current}${prefix}${missing.join("\n")}\n`, "utf8");
-    created.push(".gitignore");
+    created.push({ action: hadGitignore ? "updated" : "created", path: ".gitignore" });
   }
   return created;
 }

@@ -20,6 +20,9 @@ describe("buildConfigJson", () => {
     expect(config.stores).toEqual({ play: { packageName: "com.example.app" }, appstore: { appId: "123" } });
     expect(config.translator.provider).toBe("anthropic");
   });
+  it("does not write a $schema URL (no schema is published)", () => {
+    expect(buildConfigJson(answers)).not.toHaveProperty("$schema");
+  });
   it("includes baseUrl and model for openai-compatible", () => {
     const json = buildConfigJson({ ...answers, provider: "openai-compatible", baseUrl: "http://localhost:11434/v1", model: "qwen3" });
     expect(json.translator).toEqual({ provider: "openai-compatible", baseUrl: "http://localhost:11434/v1", model: "qwen3" });
@@ -33,13 +36,13 @@ describe("writeInitFiles", () => {
     const created = await writeInitFiles(cwd, answers);
 
     expect(created).toEqual([
-      "storelingo.config.json",
-      "fastlane/metadata/android/en-US",
-      "fastlane/metadata/en-US",
-      ".gitignore",
+      { action: "created", path: "storelingo.config.json" },
+      { action: "created", path: "fastlane/metadata/android/en-US" },
+      { action: "created", path: "fastlane/metadata/en-US" },
+      { action: "updated", path: ".gitignore" },
     ]);
     const config = JSON.parse(await readFile(join(cwd, "storelingo.config.json"), "utf8"));
-    expect(config.$schema).toBe("https://unpkg.com/storelingo/schema.json");
+    expect(config).not.toHaveProperty("$schema");
     expect((await stat(join(cwd, "fastlane/metadata/android/en-US"))).isDirectory()).toBe(true);
     const gitignore = await readFile(join(cwd, ".gitignore"), "utf8");
     expect(gitignore).toBe("node_modules/\n*.p8\nplay-service-account*.json\n");
@@ -49,15 +52,23 @@ describe("writeInitFiles", () => {
     const cwd = await makeTmpDir();
     await writeFile(join(cwd, ".gitignore"), "*.p8\nplay-service-account*.json\n");
     const created = await writeInitFiles(cwd, answers);
-    expect(created).not.toContain(".gitignore");
+    expect(created.map((c) => c.path)).not.toContain(".gitignore");
+  });
+
+  it("reports a new .gitignore as created", async () => {
+    const cwd = await makeTmpDir();
+    const created = await writeInitFiles(cwd, answers);
+    expect(created).toContainEqual({ action: "created", path: ".gitignore" });
+    expect(await readFile(join(cwd, ".gitignore"), "utf8")).toBe("*.p8\nplay-service-account*.json\n");
   });
 
   it("refuses to overwrite an existing config without force", async () => {
     const cwd = await makeTmpDir();
     await writeInitFiles(cwd, answers);
     await expect(writeInitFiles(cwd, answers)).rejects.toMatchObject({ code: "E_USAGE" });
-    await expect(writeInitFiles(cwd, { ...answers, targetLocales: ["de"] }, { force: true })).resolves.toContain(
-      "storelingo.config.json",
-    );
+    await expect(writeInitFiles(cwd, { ...answers, targetLocales: ["de"] }, { force: true })).resolves.toContainEqual({
+      action: "created",
+      path: "storelingo.config.json",
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { main, type CliDeps } from "../../src/cli/main.js";
@@ -81,6 +81,7 @@ describe("cli", () => {
 
   it("init uses the prompt and writes files", async () => {
     const cwd = await makeTmpDir();
+    await writeFile(join(cwd, ".gitignore"), "node_modules/\n");
     const { d, out } = deps(cwd, {
       promptInit: async () => ({
         sourceLocale: "en-US",
@@ -92,6 +93,8 @@ describe("cli", () => {
     });
     expect(await run(d, "init")).toBe(0);
     expect(out.join("\n")).toContain("created storelingo.config.json");
+    expect(out.join("\n")).toContain("updated .gitignore");
+    expect(out.join("\n")).not.toContain("created .gitignore");
   });
 
   it("translate returns 1 when some fields failed", async () => {

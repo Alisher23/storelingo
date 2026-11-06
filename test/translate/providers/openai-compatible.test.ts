@@ -66,6 +66,28 @@ describe("createOpenAiCompatibleLlm", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it("times out a hanging request, retries it, then fails with E_TRANSLATOR", async () => {
+    // Resolves immediately when no abort signal is passed; otherwise hangs until the signal fires.
+    const fetchImpl = vi.fn((_url: string, init: RequestInit) => {
+      const signal = init.signal;
+      if (!signal) return Promise.resolve(json(200, body));
+      return new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+    });
+    const llm = createOpenAiCompatibleLlm({
+      baseUrl: "http://x/v1",
+      model: "m",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      timeoutMs: 5,
+      sleep: async () => {},
+    });
+    const err = await llm.completeJson({ system: "", user: "", keys: ["title"] }).catch((e) => e);
+    expect(err.code).toBe("E_TRANSLATOR");
+    expect(err.message).toContain("timed out");
+    expect(fetchImpl).toHaveBeenCalledTimes(5);
+  });
+
   it("returns data undefined when content is not JSON", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(json(200, { choices: [{ message: { content: "nope" } }] }));
     const llm = createOpenAiCompatibleLlm({ baseUrl: "http://x/v1", model: "m", fetchImpl });
