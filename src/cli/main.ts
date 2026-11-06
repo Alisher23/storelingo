@@ -88,6 +88,7 @@ export async function main(argv: string[], deps: CliDeps = defaultDeps()): Promi
     deps.env.ANTHROPIC_API_KEY,
     deps.env.OPENAI_API_KEY,
     deps.env.STORELINGO_TRANSLATOR_API_KEY,
+    deps.env.STORELINGO_PLAY_SERVICE_ACCOUNT,
   ];
   const logger = (): Logger =>
     createLogger({
@@ -203,7 +204,7 @@ export async function main(argv: string[], deps: CliDeps = defaultDeps()): Promi
       const config = await loadConfig(configPath());
       const store = selectStore(opts.store, config, log);
       const message = `Upload these changes to ${STORE_NAMES[store]}?`;
-      const isTTY = deps.isTTY ?? process.stdin.isTTY === true;
+      const isTTY = deps.isTTY ?? (process.stdin.isTTY === true && process.stdout.isTTY === true);
       let ask: (summary: string[]) => Promise<boolean>;
       if (opts.yes) {
         ask = async () => true;

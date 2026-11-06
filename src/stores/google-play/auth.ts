@@ -27,7 +27,7 @@ export async function loadServiceAccount(env: NodeJS.ProcessEnv): Promise<Servic
     throw new StorelingoError(
       "E_CONFIG",
       `${ENV} is not set`,
-      "Set it to the path of your Google Play service account JSON key (or to the JSON itself). See docs/google-play-setup.md.",
+      "Set it to the path of your Google Play service account JSON key (or to the JSON itself). See https://github.com/Alisher23/storelingo/blob/main/docs/google-play-setup.md.",
     );
   }
   let text = value;

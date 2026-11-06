@@ -249,6 +249,7 @@ describe("pull/push", () => {
     const s = storeDeps(cwd);
     expect(await run(s.d, "push", "--store", "appstore", "--yes")).toBe(2);
     expect(s.err.join("\n")).toContain("v0.3");
+    expect(s.makeStore).not.toHaveBeenCalled();
   });
 
   it("E_IN_REVIEW from the store exits 1 with its message", async () => {
@@ -265,5 +266,19 @@ describe("pull/push", () => {
     const s = storeDeps(cwd);
     expect(await run(s.d, "push", "--yes")).toBe(2);
     expect(s.err.join("\n")).toContain("stores.play is not configured");
+    expect(s.makeStore).not.toHaveBeenCalled();
+  });
+
+  it("masks STORELINGO_PLAY_SERVICE_ACCOUNT in error output", async () => {
+    const { cwd } = await makeProject(files, config);
+    const secret = "sa-secret-value-123";
+    const makeStore = vi.fn(async () => {
+      throw new StorelingoError("E_STORE", `boom ${secret} boom`);
+    });
+    const s = storeDeps(cwd, { makeStore, env: { STORELINGO_PLAY_SERVICE_ACCOUNT: secret } });
+    expect(await run(s.d, "push", "--yes")).toBe(1);
+    const text = s.err.join("\n");
+    expect(text).toContain("***");
+    expect(text).not.toContain(secret);
   });
 });

@@ -2,7 +2,7 @@
 
 ИИ-локализация карточек Google Play и App Store. Работает с метаданными fastlane — сам fastlane не нужен.
 
-> Статус: v0.2, в npm пока не опубликован. Команды ниже показывают планируемое использование (`npx storelingo`). До первого релиза собирайте из исходников (см. [CONTRIBUTING.md](CONTRIBUTING.md)).
+> Статус: v0.2, в npm пока не опубликован. Команды ниже показывают планируемое использование (`npx storelingo`). До первого релиза собирайте из исходников (см. [CONTRIBUTING.md](https://github.com/Alisher23/storelingo/blob/main/CONTRIBUTING.md)).
 
 [English version](README.md)
 
@@ -183,11 +183,11 @@ storelingo [--config <path>] [--verbose] [--no-color] <command>
 |---|---|
 | `0` | Успех. |
 | `1` | `check` нашёл ошибки, часть переводов не удалась, `push` заблокирован ошибками `check` или проблемой карточки, либо произошла ошибка во время работы (например, исходная локаль не поддерживается одним из магазинов, файл не удалось прочитать или записать, Google Play отказал в доступе (`E_AUTH_PLAY`), изменения уже на проверке (`E_IN_REVIEW`) или API Play вернул ошибку (`E_STORE`)). |
-| `2` | Неверное использование или конфиг: неверный флаг, `--locale` вне `targetLocales`, нет или некорректный конфиг, `paths` за пределами проекта, символическая ссылка в папках метаданных или на месте lock-файла, повреждённый lock-файл, нет API-ключа или хост `baseUrl` не разрешён через `STORELINGO_TRANSLATOR_API_HOST`, нет или некорректен `STORELINGO_PLAY_SERVICE_ACCOUNT`, не настроен `stores.play`, `--store appstore`, либо `push` без `--yes` вне терминала. |
+| `2` | Неверное использование или конфиг: неверный флаг, `--locale` вне `targetLocales`, нет или некорректный конфиг, `paths` за пределами проекта, символическая ссылка в папках метаданных или на месте lock-файла, повреждённый lock-файл, нет API-ключа или хост `baseUrl` не разрешён через `STORELINGO_TRANSLATOR_API_HOST`, нет или некорректен `STORELINGO_PLAY_SERVICE_ACCOUNT`, ответ Google Play 404 («app not found or not accessible»), не настроен `stores.play`, `--store appstore`, либо `push` без `--yes` вне терминала. |
 
 ## Google Play
 
-`pull` и `push` работают через Google Play Android Publisher API от имени сервисного аккаунта. Один раз выполните [руководство по настройке Google Play](docs/google-play-setup.ru.md) (проект Google Cloud, ключ сервисного аккаунта, доступ в Play Console), затем:
+`pull` и `push` работают через Google Play Android Publisher API от имени сервисного аккаунта. Один раз выполните [руководство по настройке Google Play](https://github.com/Alisher23/storelingo/blob/main/docs/google-play-setup.ru.md) (проект Google Cloud, ключ сервисного аккаунта, доступ в Play Console), затем:
 
 ```bash
 export STORELINGO_PLAY_SERVICE_ACCOUNT=/path/to/play-service-account.json
@@ -202,7 +202,7 @@ npx storelingo push
 
 - `push` проверяет конфиг, `--store` и правило про терминал (вне терминала нужен `--yes` или `--dry-run`) до любых сетевых запросов. Затем запускает `check` и останавливается при ошибках (код выхода 1).
 - Одна правка (edit) Play на один `push`: все изменённые карточки загружаются и фиксируются вместе. Фиксация идёт с `changesInReviewBehavior=ERROR_IF_IN_REVIEW`, поэтому изменения, уже находящиеся на проверке, никогда не отменяются; если они есть, `push` останавливается с `E_IN_REVIEW` (код выхода 1) и ничего не меняет.
-- Если ответ на последний запрос фиксации потерян, storelingo сообщает «commit status is unknown». Проверьте Play Console или запустите `push --dry-run`, чтобы увидеть, совпадает ли карточка с вашими файлами.
+- Если последний запрос фиксации не получил внятного ответа (сетевая ошибка, тайм-аут или ответ HTTP 429/5xx), storelingo сообщает «commit status is unknown». Проверьте Play Console или запустите `push --dry-run`, чтобы увидеть, совпадает ли карточка с вашими файлами.
 - Google проверяет изменения карточки перед публикацией.
 - Список изменений (release notes) пока не загружается; используйте для него `fastlane supply`.
 - Языки, которые есть только в Google Play, никогда не удаляются. Для нового языка нужны `title`, `short_description` и `full_description`.
@@ -289,7 +289,7 @@ npx storelingo push
 
 ## Участие в проекте
 
-См. [CONTRIBUTING.md](CONTRIBUTING.md). Чтобы добавить язык или поправить лимит символов, обычно достаточно изменить один файл с данными. Репозиторий: https://github.com/Alisher23/storelingo
+См. [CONTRIBUTING.md](https://github.com/Alisher23/storelingo/blob/main/CONTRIBUTING.md). Чтобы добавить язык или поправить лимит символов, обычно достаточно изменить один файл с данными. Репозиторий: https://github.com/Alisher23/storelingo
 
 ## Лицензия
 

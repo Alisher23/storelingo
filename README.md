@@ -2,7 +2,7 @@
 
 AI localization for your Google Play and App Store listings. Works with fastlane metadata — no fastlane required.
 
-> Status: v0.2, not yet published to npm. The commands below show the intended usage (`npx storelingo`). Until the first release, build from source (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+> Status: v0.2, not yet published to npm. The commands below show the intended usage (`npx storelingo`). Until the first release, build from source (see [CONTRIBUTING.md](https://github.com/Alisher23/storelingo/blob/main/CONTRIBUTING.md)).
 
 [Русская версия](README.ru.md)
 
@@ -183,11 +183,11 @@ Exit codes:
 |---|---|
 | `0` | Success. |
 | `1` | `check` found errors, some translations failed, `push` was blocked by `check` errors or by a listing problem, or a runtime error (for example the source locale is not supported by a configured store, a file could not be read or written, Google Play denied access (`E_AUTH_PLAY`), changes are already in review (`E_IN_REVIEW`) or the Play API failed (`E_STORE`)). |
-| `2` | Bad usage or config: invalid flag, `--locale` outside `targetLocales`, missing or invalid config, `paths` outside the project, a symbolic link in the metadata folders or at the lock file, a corrupt lock file, missing API key or a `baseUrl` host not allowed by `STORELINGO_TRANSLATOR_API_HOST`, a missing or invalid `STORELINGO_PLAY_SERVICE_ACCOUNT`, `stores.play` not configured, `--store appstore`, or `push` without `--yes` outside a terminal. |
+| `2` | Bad usage or config: invalid flag, `--locale` outside `targetLocales`, missing or invalid config, `paths` outside the project, a symbolic link in the metadata folders or at the lock file, a corrupt lock file, missing API key or a `baseUrl` host not allowed by `STORELINGO_TRANSLATOR_API_HOST`, a missing or invalid `STORELINGO_PLAY_SERVICE_ACCOUNT`, a Google Play 404 ("app not found or not accessible"), `stores.play` not configured, `--store appstore`, or `push` without `--yes` outside a terminal. |
 
 ## Google Play
 
-`pull` and `push` use the Google Play Android Publisher API with a service account. Follow the [Google Play setup guide](docs/google-play-setup.md) once (Google Cloud project, service account key, access in Play Console), then:
+`pull` and `push` use the Google Play Android Publisher API with a service account. Follow the [Google Play setup guide](https://github.com/Alisher23/storelingo/blob/main/docs/google-play-setup.md) once (Google Cloud project, service account key, access in Play Console), then:
 
 ```bash
 export STORELINGO_PLAY_SERVICE_ACCOUNT=/path/to/play-service-account.json
@@ -202,7 +202,7 @@ How it behaves:
 
 - `push` validates the config, `--store` and the terminal rule (outside a terminal it needs `--yes` or `--dry-run`) before any network request. It then runs `check` and stops on errors (exit code 1).
 - One Play edit per push: all changed listings are uploaded and committed together. The commit uses `changesInReviewBehavior=ERROR_IF_IN_REVIEW`, so changes that are already in review are never cancelled; if there are any, `push` stops with `E_IN_REVIEW` (exit code 1) and changes nothing.
-- If the answer to the final commit request is lost, storelingo reports "commit status is unknown". Check Play Console, or run `push --dry-run` to see whether the listing already matches your files.
+- If the final commit request gets no clear answer (a network error, a timeout, or an HTTP 429/5xx response), storelingo reports "commit status is unknown". Check Play Console, or run `push --dry-run` to see whether the listing already matches your files.
 - Google reviews listing changes before they go live.
 - Changelogs (release notes) are not uploaded yet; use `fastlane supply` for them.
 - Languages that exist only in Google Play are never deleted. A new language needs `title`, `short_description` and `full_description`.
@@ -289,7 +289,7 @@ Generated from `src/locales/table.ts`. "—" means the store does not support th
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). To add a language or fix a character limit you usually only need to edit one data file. Repository: https://github.com/Alisher23/storelingo
+See [CONTRIBUTING.md](https://github.com/Alisher23/storelingo/blob/main/CONTRIBUTING.md). To add a language or fix a character limit you usually only need to edit one data file. Repository: https://github.com/Alisher23/storelingo
 
 ## License
 
