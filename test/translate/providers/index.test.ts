@@ -45,7 +45,32 @@ describe("resolveOpenAiKey", () => {
   it("never sends OPENAI_API_KEY to other hosts", () => {
     expect(resolveOpenAiKey("https://openrouter.ai/api/v1", { OPENAI_API_KEY: "sk-openai" })).toBeUndefined();
   });
-  it("uses STORELINGO_TRANSLATOR_API_KEY for other hosts", () => {
-    expect(resolveOpenAiKey("https://openrouter.ai/api/v1", env)).toBe("sk-other");
+  it("sends STORELINGO_TRANSLATOR_API_KEY when the host var matches", () => {
+    const withHost = { ...env, STORELINGO_TRANSLATOR_API_HOST: "openrouter.ai" };
+    expect(resolveOpenAiKey("https://openrouter.ai/api/v1", withHost)).toBe("sk-other");
+  });
+  it("compares the host var case-insensitively and trimmed", () => {
+    const withHost = { ...env, STORELINGO_TRANSLATOR_API_HOST: " OpenRouter.ai " };
+    expect(resolveOpenAiKey("https://openrouter.ai/api/v1", withHost)).toBe("sk-other");
+  });
+  it("throws E_CONFIG, without leaking the key, when the host var names another host", () => {
+    const withHost = { ...env, STORELINGO_TRANSLATOR_API_HOST: "good.example" };
+    let err: unknown;
+    try {
+      resolveOpenAiKey("https://evil.example/v1", withHost);
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toMatchObject({ code: "E_CONFIG" });
+    expect(JSON.stringify(err)).not.toContain("sk-other");
+    expect((err as Error).message).not.toContain("sk-other");
+  });
+  it("throws E_CONFIG when the key is set but no host var", () => {
+    expect(() => resolveOpenAiKey("https://openrouter.ai/api/v1", env)).toThrowError(
+      expect.objectContaining({ code: "E_CONFIG" }),
+    );
+  });
+  it("returns undefined with no key and no host var on localhost", () => {
+    expect(resolveOpenAiKey("http://localhost:11434/v1", {})).toBeUndefined();
   });
 });
