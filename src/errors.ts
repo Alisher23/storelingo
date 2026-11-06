@@ -8,7 +8,9 @@ export type ErrorCode =
   | "E_LIMIT"
   | "E_MISSING"
   | "E_FORMAT"
-  | "E_TRANSLATOR";
+  | "E_TRANSLATOR"
+  | "E_IN_REVIEW"
+  | "E_STORE";
 
 export class StorelingoError extends Error {
   constructor(
