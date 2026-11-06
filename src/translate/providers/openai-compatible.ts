@@ -49,7 +49,10 @@ export function createOpenAiCompatibleLlm(opts: {
             throw new RetryableError(`HTTP ${res.status}`, retryAfterMs(res));
           }
           if (!res.ok) {
-            const text = (await res.text()).slice(0, 500);
+            let raw = await res.text();
+            // Some servers echo the credential back in error bodies; never surface it.
+            if (opts.apiKey) raw = raw.split(opts.apiKey).join("***");
+            const text = raw.slice(0, 500);
             throw new StorelingoError("E_TRANSLATOR", `Translator API error ${res.status}: ${text}`);
           }
           return (await res.json()) as ChatCompletion;

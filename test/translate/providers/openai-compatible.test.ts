@@ -56,6 +56,16 @@ describe("createOpenAiCompatibleLlm", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it("redacts the API key echoed in an error body", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json(401, { error: "invalid key sk-secret-123" }));
+    const llm = createOpenAiCompatibleLlm({ apiKey: "sk-secret-123", baseUrl: "http://x/v1", model: "m", fetchImpl });
+    const err = await llm.completeJson({ system: "", user: "", keys: ["t"] }).catch((e) => e);
+    expect(err.code).toBe("E_TRANSLATOR");
+    expect(err.message).toContain("***");
+    expect(err.message).not.toContain("sk-secret-123");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it("returns data undefined when content is not JSON", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(json(200, { choices: [{ message: { content: "nope" } }] }));
     const llm = createOpenAiCompatibleLlm({ baseUrl: "http://x/v1", model: "m", fetchImpl });
