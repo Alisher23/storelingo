@@ -3,9 +3,11 @@
 Deferred minor findings and parked items from the v0.1 task and final reviews (branch feat/v0.1-core). Many are good first issues. Items fixed in the final fix wave are not listed here (see commits 4a0a285..728be20).
 
 ## Parked after final review
-- openai-compatible fetch follows redirects (307/308 resend body to another host) — Ruling: real, defer to v0.2 hardening (set redirect: "error"); Authorization is dropped cross-origin by undici so keys are safe — cost if wrong: listing text could reach a redirect target on an allowed host.
-- init writes config/.gitignore with plain writeFile (follows planted symlink) — Ruling: low risk (interactive, user's own project), defer — cost if wrong: init in a hostile clone could overwrite a symlink target.
 - listLocales unused and not symlink-guarded; I4 gap when name translation fails in the same job — Ruling: defer.
+
+## Done in v0.2
+- openai-compatible fetch follows redirects — fixed: the request now uses `redirect: "error"`.
+- init writes config/.gitignore with plain writeFile (follows planted symlink) — fixed: `init` calls `assertSafePath` for both files before writing.
 
 ## Deferred minors (per task; some were fixed in the final fix wave — re-check before working on one)
 - Task 1: minor (deferred): test/util/chars.test.ts:15 combining mark is a raw invisible literal; prefer the "\u0301" escape (NFC-normalizing editors would flip it).

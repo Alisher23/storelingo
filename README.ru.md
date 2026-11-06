@@ -2,7 +2,7 @@
 
 ИИ-локализация карточек Google Play и App Store. Работает с метаданными fastlane — сам fastlane не нужен.
 
-> Статус: v0.1, в npm пока не опубликован. Команды ниже показывают планируемое использование (`npx storelingo`). До первого релиза собирайте из исходников (см. [CONTRIBUTING.md](CONTRIBUTING.md)).
+> Статус: v0.2, в npm пока не опубликован. Команды ниже показывают планируемое использование (`npx storelingo`). До первого релиза собирайте из исходников (см. [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 [English version](README.md)
 
@@ -118,6 +118,7 @@ fastlane/metadata/                  # App Store (fastlane deliver)
 | `OPENAI_API_KEY` | OpenAI-совместимый провайдер, **только** если хост в `baseUrl` — `api.openai.com`. |
 | `STORELINGO_TRANSLATOR_API_KEY` | Любой другой OpenAI-совместимый хост (OpenRouter, endpoint Gemini и т.д.). |
 | `STORELINGO_TRANSLATOR_API_HOST` | Хост, к которому разрешено обращаться OpenAI-совместимому провайдеру. Обязателен для любого нелокального хоста, кроме `api.openai.com`, даже без ключа; единственный хост, который получает `STORELINGO_TRANSLATOR_API_KEY`. |
+| `STORELINGO_PLAY_SERVICE_ACCOUNT` | `pull` / `push` для Google Play: путь к JSON-ключу сервисного аккаунта или сам JSON. См. [Google Play](#google-play). |
 
 Правила для `openai-compatible`:
 
@@ -169,6 +170,10 @@ storelingo [--config <path>] [--verbose] [--no-color] <command>
 | `init [--force]` | Интерактивная настройка: создаёт `storelingo.config.json` и папки fastlane. `--force` перезаписывает существующий конфиг. |
 | `translate [--locale <code...>] [--force]` | Переводит изменившиеся поля на целевые локали. `--locale` ограничивает запуск частью `targetLocales`. `--force` переводит всё заново, включая файлы, которые вы правили руками. |
 | `check` | Офлайн-проверка: лимиты символов, отсутствующие обязательные поля, формат ключевых слов. API не вызывает. |
+| `pull [--store <store>] [--force]` | Скачивает текущие тексты из магазина в папки fastlane. Локальные файлы, отличающиеся от магазина, остаются нетронутыми, если не указан `--force`. Магазин не меняет. |
+| `push [--store <store>] [--dry-run] [--yes]` | Запускает `check`, показывает diff с живой карточкой и после подтверждения загружает. `--dry-run` только показывает diff. Вне терминала нужен `--yes` или `--dry-run`. |
+
+`--store` в v0.2 принимает только `play` (значение по умолчанию). `--store appstore` завершается с кодом 2 («arrives in v0.3»). Если `stores.play` не настроен, `pull` и `push` останавливаются с ошибкой конфигурации.
 
 Глобальные флаги: `--config <path>` (по умолчанию `storelingo.config.json`), `--verbose` (отладочный вывод), `--no-color`, `--version`, `--help`.
 
@@ -177,8 +182,32 @@ storelingo [--config <path>] [--verbose] [--no-color] <command>
 | Код | Значение |
 |---|---|
 | `0` | Успех. |
-| `1` | `check` нашёл ошибки, часть переводов не удалась или произошла ошибка во время работы (например, исходная локаль не поддерживается одним из магазинов или файл не удалось прочитать или записать). |
-| `2` | Неверное использование или конфиг: неверный флаг, `--locale` вне `targetLocales`, нет или некорректный конфиг, `paths` за пределами проекта, символическая ссылка в папках метаданных или на месте lock-файла, повреждённый lock-файл, нет API-ключа или хост `baseUrl` не разрешён через `STORELINGO_TRANSLATOR_API_HOST`. |
+| `1` | `check` нашёл ошибки, часть переводов не удалась, `push` заблокирован ошибками `check` или проблемой карточки, либо произошла ошибка во время работы (например, исходная локаль не поддерживается одним из магазинов, файл не удалось прочитать или записать, Google Play отказал в доступе (`E_AUTH_PLAY`), изменения уже на проверке (`E_IN_REVIEW`) или API Play вернул ошибку (`E_STORE`)). |
+| `2` | Неверное использование или конфиг: неверный флаг, `--locale` вне `targetLocales`, нет или некорректный конфиг, `paths` за пределами проекта, символическая ссылка в папках метаданных или на месте lock-файла, повреждённый lock-файл, нет API-ключа или хост `baseUrl` не разрешён через `STORELINGO_TRANSLATOR_API_HOST`, нет или некорректен `STORELINGO_PLAY_SERVICE_ACCOUNT`, не настроен `stores.play`, `--store appstore`, либо `push` без `--yes` вне терминала. |
+
+## Google Play
+
+`pull` и `push` работают через Google Play Android Publisher API от имени сервисного аккаунта. Один раз выполните [руководство по настройке Google Play](docs/google-play-setup.ru.md) (проект Google Cloud, ключ сервисного аккаунта, доступ в Play Console), затем:
+
+```bash
+export STORELINGO_PLAY_SERVICE_ACCOUNT=/path/to/play-service-account.json
+npx storelingo pull
+npx storelingo translate
+npx storelingo check
+npx storelingo push --dry-run
+npx storelingo push
+```
+
+Как это работает:
+
+- `push` проверяет конфиг, `--store` и правило про терминал (вне терминала нужен `--yes` или `--dry-run`) до любых сетевых запросов. Затем запускает `check` и останавливается при ошибках (код выхода 1).
+- Одна правка (edit) Play на один `push`: все изменённые карточки загружаются и фиксируются вместе. Фиксация идёт с `changesInReviewBehavior=ERROR_IF_IN_REVIEW`, поэтому изменения, уже находящиеся на проверке, никогда не отменяются; если они есть, `push` останавливается с `E_IN_REVIEW` (код выхода 1) и ничего не меняет.
+- Если ответ на последний запрос фиксации потерян, storelingo сообщает «commit status is unknown». Проверьте Play Console или запустите `push --dry-run`, чтобы увидеть, совпадает ли карточка с вашими файлами.
+- Google проверяет изменения карточки перед публикацией.
+- Список изменений (release notes) пока не загружается; используйте для него `fastlane supply`.
+- Языки, которые есть только в Google Play, никогда не удаляются. Для нового языка нужны `title`, `short_description` и `full_description`.
+- `pull` ничего не фиксирует в магазине и не трогает `storelingo.lock.json`. У скачанных переводов нет записи в lock-файле, поэтому `translate` считает их ручными правками и пропускает; переведите их заново через `translate --force` (можно с `--locale`).
+- Ключ сервисного аккаунта читается только из `STORELINGO_PLAY_SERVICE_ACCOUNT` (путь или сам JSON). Токены запрашиваются на фиксированном адресе Google; `token_uri` из файла ключа игнорируется.
 
 ## Как работает перевод
 
@@ -253,8 +282,8 @@ storelingo [--config <path>] [--verbose] [--no-color] <command>
 
 ## Планы
 
-- v0.2: Google Play `pull` / `push`
-- v0.3: App Store `pull` / `push`
+- v0.2 (готово): Google Play `pull` / `push`
+- Дальше, v0.3: App Store `pull` / `push`
 - v1.0: GitHub Action
 - Позже: скриншоты, RuStore, Huawei AppGallery
 

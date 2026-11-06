@@ -2,7 +2,7 @@
 
 AI localization for your Google Play and App Store listings. Works with fastlane metadata — no fastlane required.
 
-> Status: v0.1, not yet published to npm. The commands below show the intended usage (`npx storelingo`). Until the first release, build from source (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+> Status: v0.2, not yet published to npm. The commands below show the intended usage (`npx storelingo`). Until the first release, build from source (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 [Русская версия](README.ru.md)
 
@@ -118,6 +118,7 @@ Keys come only from environment variables. They are never written to the config,
 | `OPENAI_API_KEY` | OpenAI-compatible, **only** when the `baseUrl` host is `api.openai.com`. |
 | `STORELINGO_TRANSLATOR_API_KEY` | Any other OpenAI-compatible host (OpenRouter, Gemini endpoint, ...). |
 | `STORELINGO_TRANSLATOR_API_HOST` | The host the OpenAI-compatible provider may talk to. Required for every non-local host other than `api.openai.com`, even without a key; the only host that receives `STORELINGO_TRANSLATOR_API_KEY`. |
+| `STORELINGO_PLAY_SERVICE_ACCOUNT` | Google Play `pull` / `push`: the path to the service account JSON key, or the JSON itself. See [Google Play](#google-play). |
 
 Rules for `openai-compatible`:
 
@@ -169,6 +170,10 @@ storelingo [--config <path>] [--verbose] [--no-color] <command>
 | `init [--force]` | Interactive setup: creates `storelingo.config.json` and the fastlane folders. `--force` overwrites an existing config. |
 | `translate [--locale <code...>] [--force]` | Translates changed fields into the target locales. `--locale` limits the run to some of `targetLocales`. `--force` re-translates everything, including files you edited manually. |
 | `check` | Offline validation: character limits, missing required fields, keyword format. Makes no API calls. |
+| `pull [--store <store>] [--force]` | Downloads the current store listings into the fastlane folders. Local files that differ from the store are kept unless you pass `--force`. Never changes the store. |
+| `push [--store <store>] [--dry-run] [--yes]` | Runs `check`, shows the diff with the live listing and uploads after confirmation. `--dry-run` only shows the diff. Outside a terminal it needs `--yes` or `--dry-run`. |
+
+`--store` accepts only `play` in v0.2 (the default). `--store appstore` stops with exit code 2 ("arrives in v0.3"). If `stores.play` is not configured, `pull` and `push` stop with a config error.
 
 Global flags: `--config <path>` (default `storelingo.config.json`), `--verbose` (debug output), `--no-color`, `--version`, `--help`.
 
@@ -177,8 +182,32 @@ Exit codes:
 | Code | Meaning |
 |---|---|
 | `0` | Success. |
-| `1` | `check` found errors, some translations failed, or a runtime error (for example the source locale is not supported by a configured store, or a file could not be read or written). |
-| `2` | Bad usage or config: invalid flag, `--locale` outside `targetLocales`, missing or invalid config, `paths` outside the project, a symbolic link in the metadata folders or at the lock file, a corrupt lock file, missing API key or a `baseUrl` host not allowed by `STORELINGO_TRANSLATOR_API_HOST`. |
+| `1` | `check` found errors, some translations failed, `push` was blocked by `check` errors or by a listing problem, or a runtime error (for example the source locale is not supported by a configured store, a file could not be read or written, Google Play denied access (`E_AUTH_PLAY`), changes are already in review (`E_IN_REVIEW`) or the Play API failed (`E_STORE`)). |
+| `2` | Bad usage or config: invalid flag, `--locale` outside `targetLocales`, missing or invalid config, `paths` outside the project, a symbolic link in the metadata folders or at the lock file, a corrupt lock file, missing API key or a `baseUrl` host not allowed by `STORELINGO_TRANSLATOR_API_HOST`, a missing or invalid `STORELINGO_PLAY_SERVICE_ACCOUNT`, `stores.play` not configured, `--store appstore`, or `push` without `--yes` outside a terminal. |
+
+## Google Play
+
+`pull` and `push` use the Google Play Android Publisher API with a service account. Follow the [Google Play setup guide](docs/google-play-setup.md) once (Google Cloud project, service account key, access in Play Console), then:
+
+```bash
+export STORELINGO_PLAY_SERVICE_ACCOUNT=/path/to/play-service-account.json
+npx storelingo pull
+npx storelingo translate
+npx storelingo check
+npx storelingo push --dry-run
+npx storelingo push
+```
+
+How it behaves:
+
+- `push` validates the config, `--store` and the terminal rule (outside a terminal it needs `--yes` or `--dry-run`) before any network request. It then runs `check` and stops on errors (exit code 1).
+- One Play edit per push: all changed listings are uploaded and committed together. The commit uses `changesInReviewBehavior=ERROR_IF_IN_REVIEW`, so changes that are already in review are never cancelled; if there are any, `push` stops with `E_IN_REVIEW` (exit code 1) and changes nothing.
+- If the answer to the final commit request is lost, storelingo reports "commit status is unknown". Check Play Console, or run `push --dry-run` to see whether the listing already matches your files.
+- Google reviews listing changes before they go live.
+- Changelogs (release notes) are not uploaded yet; use `fastlane supply` for them.
+- Languages that exist only in Google Play are never deleted. A new language needs `title`, `short_description` and `full_description`.
+- `pull` never commits anything and never touches `storelingo.lock.json`. Pulled translations have no lock entry, so `translate` treats them as manual edits and skips them; re-translate them with `translate --force` (optionally with `--locale`).
+- The service account key is read only from `STORELINGO_PLAY_SERVICE_ACCOUNT` (a path or the JSON itself). Tokens are requested from Google's fixed token endpoint; the `token_uri` inside the key file is ignored.
 
 ## How translation works
 
@@ -253,8 +282,8 @@ Generated from `src/locales/table.ts`. "—" means the store does not support th
 
 ## Roadmap
 
-- v0.2: Google Play `pull` / `push`
-- v0.3: App Store `pull` / `push`
+- v0.2 (done): Google Play `pull` / `push`
+- Next, v0.3: App Store `pull` / `push`
 - v1.0: GitHub Action
 - Later: screenshots, RuStore, Huawei AppGallery
 
