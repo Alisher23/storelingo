@@ -56,7 +56,9 @@ fastlane/metadata/                  # App Store (fastlane deliver)
   ru/ ...
 ```
 
-The `android`, `default`, `review_information` and `trade_representative_contact_information` folders inside `fastlane/metadata` are not treated as App Store locales. Files are written as UTF-8 without BOM with `\n` line endings; the source's trailing newline is preserved.
+The `android`, `default`, `review_information` and `trade_representative_contact_information` folders inside `fastlane/metadata` are not treated as App Store locales. Files are written as UTF-8 without BOM with `\n` line endings (line breaks in the model's reply are normalized before writing); the source's trailing newline is preserved.
+
+The metadata paths and `storelingo.lock.json` are resolved against the current directory, so run storelingo from the project root. `paths.play` and `paths.appstore` must stay inside the project: absolute paths and `..` escapes are rejected with a config error (exit code 2). storelingo also refuses to follow symbolic links in the metadata folders and for the lock file (exit code 2), because the config and these files can come from someone else's repository.
 
 For Google Play, the newest changelog (highest version code) of the source locale is the one that gets translated.
 
@@ -90,7 +92,7 @@ For Google Play, the newest changelog (highest version code) of the source local
 | Key | Required | Description |
 |---|---|---|
 | `sourceLocale` | yes | storelingo locale code of your source texts, e.g. `en-US`. |
-| `targetLocales` | yes | Non-empty list of storelingo locale codes to translate into. |
+| `targetLocales` | yes | Non-empty list of storelingo locale codes to translate into, without duplicates. |
 | `stores.play.packageName` | one store required | Enables Google Play. |
 | `stores.appstore.appId` | one store required | Enables the App Store. |
 | `translator.provider` | yes | `anthropic` or `openai-compatible`. |
@@ -101,8 +103,10 @@ For Google Play, the newest changelog (highest version code) of the source local
 | `context` | no | Short description of your app; added to every prompt. |
 | `glossary.doNotTranslate` | no | Terms kept exactly as written (brand names). |
 | `glossary.terms` | no | Preferred translations per target locale: `{ "<locale>": { "<source term>": "<translation>" } }`. |
-| `paths.play` | no | Play metadata root (default `fastlane/metadata/android`). |
-| `paths.appstore` | no | App Store metadata root (default `fastlane/metadata`). |
+| `paths.play` | no | Play metadata root (default `fastlane/metadata/android`). A relative path inside the project. |
+| `paths.appstore` | no | App Store metadata root (default `fastlane/metadata`). A relative path inside the project. |
+
+Unknown keys are rejected, so a typo such as `glossary.doNotTranslte` is reported instead of silently ignored.
 
 ### Translators and API keys
 
@@ -113,16 +117,16 @@ Keys come only from environment variables. They are never written to the config,
 | `ANTHROPIC_API_KEY` | Claude (`provider: "anthropic"`). |
 | `OPENAI_API_KEY` | OpenAI-compatible, **only** when the `baseUrl` host is `api.openai.com`. |
 | `STORELINGO_TRANSLATOR_API_KEY` | Any other OpenAI-compatible host (OpenRouter, Gemini endpoint, ...). |
-| `STORELINGO_TRANSLATOR_API_HOST` | The one host allowed to receive `STORELINGO_TRANSLATOR_API_KEY`. |
+| `STORELINGO_TRANSLATOR_API_HOST` | The host the OpenAI-compatible provider may talk to. Required for every non-local host other than `api.openai.com`, even without a key; the only host that receives `STORELINGO_TRANSLATOR_API_KEY`. |
 
 Rules for `openai-compatible`:
 
-- `api.openai.com`: uses `OPENAI_API_KEY`.
-- Any other host: uses `STORELINGO_TRANSLATOR_API_KEY`, and only if `STORELINGO_TRANSLATOR_API_HOST` equals the hostname of `baseUrl`. If the key is set but the host does not match, storelingo stops with a config error (exit code 2) instead of sending the key.
-- Local Ollama (or any server that needs no key): no key variable is needed.
-- A non-loopback `baseUrl` must be `https://`; plain `http://` is allowed only for `localhost`, `127.0.0.1` and `[::1]`.
+- `api.openai.com`: uses `OPENAI_API_KEY`; no other variable is needed.
+- Any other non-local host: `STORELINGO_TRANSLATOR_API_HOST` must equal the hostname of `baseUrl`, **even if no key is set**; otherwise storelingo stops with a config error (exit code 2) and sends nothing. `STORELINGO_TRANSLATOR_API_KEY`, if set, is sent only to that host.
+- Local servers (`localhost`, `127.0.0.1`, `[::1]`, e.g. Ollama): no variable is needed. A `STORELINGO_TRANSLATOR_API_KEY` is sent to a local server only if `STORELINGO_TRANSLATOR_API_HOST` names it; if the key is set and the host does not match, storelingo stops with a config error.
+- `baseUrl` must be `https://`; plain `http://` is allowed only for `localhost`, `127.0.0.1` and `[::1]`. Other schemes (`file:`, `data:`, ...) are rejected.
 
-Why: a `storelingo.config.json` can come from someone else's repository. Without these rules, a malicious config could set `baseUrl` to its own server and collect whatever API key is in your environment. Each key can only travel to the host you explicitly allowed.
+Why: a `storelingo.config.json` can come from someone else's repository. Without these rules, a malicious config could set `baseUrl` to its own server and collect whatever API key is in your environment, or your unreleased listing texts. Requests and keys can only travel to the host you explicitly allowed.
 
 OpenRouter:
 
@@ -173,16 +177,16 @@ Exit codes:
 | Code | Meaning |
 |---|---|
 | `0` | Success. |
-| `1` | `check` found errors, or some translations failed. |
-| `2` | Bad usage or config (invalid flag, missing or invalid config, missing API key). |
+| `1` | `check` found errors, some translations failed, or a runtime error (for example the source locale is not supported by a configured store, or a file could not be read or written). |
+| `2` | Bad usage or config: invalid flag, `--locale` outside `targetLocales`, missing or invalid config, `paths` outside the project, a symbolic link in the metadata folders or at the lock file, a corrupt lock file, missing API key or a `baseUrl` host not allowed by `STORELINGO_TRANSLATOR_API_HOST`. |
 
 ## How translation works
 
-1. For every store and target locale, storelingo decides per field: skip if the source is empty or missing; skip if you edited the translated file by hand; skip if the source has not changed since the last run; otherwise translate.
+1. For every store and target locale, storelingo decides per field: skip if the source is empty or missing; translate if the target file is missing or empty (whitespace only); skip if you edited the translated file by hand; skip if the source has not changed since the last run; otherwise translate.
 2. One request per store and locale carries all selected fields, together with your `context`, `doNotTranslate` list, the locale's `terms` and each field's character limit. The prompt asks for localized, idiomatic text and preserves line breaks and bullet lists.
 3. The JSON reply is validated; an invalid reply is retried once.
 4. A field over its limit is sent back for shortening, at most 2 times. If it still exceeds the limit, nothing is written for that field and it is reported as an error.
-5. App Store `keywords` are normalized in code after the reply: trimmed, comma-separated without spaces, deduplicated, words from the name and subtitle removed.
+5. App Store `keywords` are normalized in code after the reply: trimmed, comma-separated without spaces, deduplicated, words from the name and subtitle removed (the newly translated ones, or the locale's current `name.txt` / `subtitle.txt` when those are not re-translated in this run).
 6. Translations are written to the fastlane folders. `storelingo.lock.json` stores hashes of each source and written output. A target file whose hash no longer matches the lock was edited by you and is skipped, unless you pass `--force`. The lock is written atomically after each field; commit it to git.
 7. The run continues past a single failure. At the end storelingo prints a summary (translated, unchanged, edited manually, unsupported, failed, tokens) and exits with code 1 if anything failed. Fields that succeeded are already saved.
 
