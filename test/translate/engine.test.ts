@@ -76,6 +76,23 @@ describe("createTranslator", () => {
     expect(result.texts.keywords).toBe("qibla");
   });
 
+  it("excludes only the final shortened name words from keywords", async () => {
+    const { llm, completeJson } = fakeLlm(
+      reply({ name: "  Gebetszeiten und Qibla Kompass für alle Muslime  ", keywords: "qibla,kompass,gebetszeiten" }),
+      reply({ text: "Gebetszeiten" }),
+    );
+    const result = await createTranslator(llm).translate({
+      ...base,
+      fields: [
+        { key: "name", text: "Prayer", maxChars: 30, kind: "text" },
+        { key: "keywords", text: "qibla,kompass,prayer", maxChars: 100, kind: "keywords" },
+      ],
+    });
+    expect(result.texts.name).toBe("Gebetszeiten");
+    expect(result.texts.keywords).toBe("qibla,kompass");
+    expect(completeJson).toHaveBeenCalledTimes(2);
+  });
+
   it("does not limit fields without maxChars", async () => {
     const { llm, completeJson } = fakeLlm(reply({ name: "y".repeat(100) }));
     const result = await createTranslator(llm).translate({

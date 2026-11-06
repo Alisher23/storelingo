@@ -46,15 +46,13 @@ export function createTranslator(llm: LlmClient, opts: { maxShortenAttempts?: nu
         );
       }
 
-      const nameWords = [raw.name, raw.subtitle].filter((s): s is string => s !== undefined);
-      const clean = (field: FieldToTranslate, text: string): string =>
-        field.kind === "keywords" ? normalizeKeywords(text.trim(), nameWords) : text.trim();
-
       const texts: Record<string, string> = {};
       const errors: Record<string, string> = {};
 
-      for (const field of req.fields) {
-        let text = clean(field, raw[field.key] ?? "");
+      const finish = async (field: FieldToTranslate, initial: string, exclude: string[]): Promise<void> => {
+        const clean = (text: string): string =>
+          field.kind === "keywords" ? normalizeKeywords(text.trim(), exclude) : text.trim();
+        let text = clean(initial);
         if (field.maxChars !== null) {
           for (let i = 0; i < maxShorten && countChars(text) > field.maxChars; i++) {
             const res = await llm.completeJson({
@@ -64,14 +62,25 @@ export function createTranslator(llm: LlmClient, opts: { maxShortenAttempts?: nu
             });
             usage = addUsage(usage, res.usage);
             const shorter = parseTexts(res.data, ["text"]);
-            if (shorter?.text !== undefined) text = clean(field, shorter.text);
+            if (shorter?.text !== undefined) text = clean(shorter.text);
           }
           if (countChars(text) > field.maxChars) {
             errors[field.key] = `${countChars(text)} characters, limit is ${field.maxChars}`;
-            continue;
+            return;
           }
         }
         texts[field.key] = text;
+      };
+
+      // Non-keyword fields first, so keyword exclusion sees the final (trimmed, shortened) name and subtitle.
+      for (const field of req.fields.filter((f) => f.kind !== "keywords")) {
+        await finish(field, raw[field.key] ?? "", []);
+      }
+      const nameWords = ["name", "subtitle"]
+        .map((key) => texts[key])
+        .filter((s): s is string => s !== undefined);
+      for (const field of req.fields.filter((f) => f.kind === "keywords")) {
+        await finish(field, raw[field.key] ?? "", nameWords);
       }
 
       return { texts, errors, usage };
