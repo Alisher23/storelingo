@@ -233,6 +233,13 @@ Lock-файл коммитится в git, чтобы CI и соавторы р�
 - **pull:** `edits.insert` → `edits.listings.list` → `edits.delete`.
 - **push:** `edits.insert` → `edits.listings.update` для каждой изменённой локали → `edits.validate` → `edits.commit`. Любая ошибка → `edits.delete`, в магазине ничего не меняется.
 - **v1:** только title / short_description / full_description / video. Changelogs не заливаются, это отмечается в выводе `push`.
+- **API (проверено по документации Google, 2026-11):** база `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{packageName}`; `POST /edits` → `{ id }`; `GET /edits/{id}/listings` → `{ listings: [{ language, title, shortDescription, fullDescription, video }] }`; `PUT /edits/{id}/listings/{language}` с телом Listing (создаёт или обновляет); `POST /edits/{id}:validate`; `POST /edits/{id}:commit`; `DELETE /edits/{id}`.
+- **Коммит:** всегда с `changesInReviewBehavior=ERROR_IF_IN_REVIEW`. По умолчанию Google **отменяет изменения, уже находящиеся на проверке**, и отправляет новые — storelingo так никогда не делает. Если на проверке уже есть изменения → `E_IN_REVIEW` с подсказкой, черновик удаляется. Изменения листинга в Play после коммита проходят обычную проверку Google — это свойство магазина, а не отдельная отправка на ревью.
+- **Токен:** JWT RS256 с `iss` = `client_email`, `scope` = `https://www.googleapis.com/auth/androidpublisher`, `aud` = `https://oauth2.googleapis.com/token`, `exp - iat ≤ 3600`; обмен `POST https://oauth2.googleapis.com/token` (form: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`, `assertion`). Эндпоинт токена фиксированный (`token_uri` из файла ключа не используется).
+- **HTTP:** таймаут на запрос, ретраи 429/5xx, `redirect: "error"`; токен и ключ никогда не попадают в ошибки и логи.
+- **pull (Play):** пишет все языки, которые вернул Play, в папки по коду Play (в т.ч. языки вне таблицы storelingo — с предупреждением, что их нельзя сделать целевыми). Пустые поля не пишутся. Существующий файл с другим содержимым не перезаписывается без `--force` (сообщается как «пропущено: отличается»). Lock-файл не трогает: скачанные переводы без записи в lock считаются ручными правками и защищены от `translate`.
+- **push (Play):** локали = исходная + целевые, которые поддерживает Play и для которых есть локальные файлы. Для каждой: значения из файлов поверх текущих значений в Play (поля без локального файла не трогаются). Новая локаль в Play требует локальных title, short_description и full_description, иначе ошибка `E_MISSING` для этой локали. Сравнение без хвостовых переводов строк. Удалённые локали, которых нет локально, не удаляются.
+- **`--store`:** в v0.2 поддерживается только `play`; `appstore` → `E_USAGE` («появится в v0.3»). Без `--store` push/pull работают с Play и сообщают, что App Store пока не поддерживается.
 
 ### 7.2 App Store Connect API
 
@@ -266,6 +273,8 @@ Lock-файл коммитится в git, чтобы CI и соавторы р�
 | `E_MISSING` | нет обязательного поля в исходном языке | какой файл создать |
 | `E_FORMAT` | неверный формат keywords | пример правильного формата |
 | `E_USAGE` | неверные аргументы команды | правильный вызов |
+| `E_IN_REVIEW` | в Play уже есть изменения на проверке | дождаться проверки или отправить/отменить их в Play Console |
+| `E_STORE` | прочая ошибка API магазина | HTTP-статус и сообщение магазина (без токена) |
 
 Коды выхода: `0` — успех, `1` — ошибки валидации или частичный сбой, `2` — неверное использование или конфиг.
 
