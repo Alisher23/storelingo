@@ -2,9 +2,12 @@
 
 ## 0.3.0 — unreleased
 
+- **Breaking:** `stores.appstore.appId` must be the numeric Apple ID (for example `1234567890`), not the bundle ID.
 - App Store `pull` / `push` (`--store appstore`) through the App Store Connect API with a team API key (`STORELINGO_ASC_ISSUER_ID`, `STORELINGO_ASC_KEY_ID`, `STORELINGO_ASC_PRIVATE_KEY`); setup guide in `docs/app-store-setup.md`.
 - `pull` and `push` without `--store` now run every configured store (Google Play, then the App Store), each with its own diff and confirmation.
-- App Store `push` is not atomic: it applies one language at a time and reports partial progress ("already applied ... not applied ..."); re-running only sends what still differs.
+- App Store `push` is not atomic: it applies one language at a time, sends only the changed fields, and on a failure reports "already applied: ...; failed (may be partly applied): ...; not attempted: ..."; re-running only sends what still differs.
+- `pull` and `push` load the credentials of every selected store before touching any of them, so a missing App Store key no longer shows up after Google Play was already pushed.
+- Release notes are not sent for the first version of an app (Apple shows them only for updates); skipped lines name their real reason; several editable versions or app infos prefer `PREPARE_FOR_SUBMISSION` or fail with a clear `E_STORE`; paginated App Store Connect lists are capped and never silently truncated.
 - Fields are routed to the resource that can take them: `name`, `subtitle`, `privacy_url` to the editable app info; `description`, `keywords`, `release_notes`, `marketing_url`, `support_url` to the editable version; `promotional_text` to the editable version or else the live one. Changes with no such resource are shown as skipped and never sent.
 - Requests that create a localization are never retried; a lost response is reported as "status is unknown".
 - New `stores.appstore.platform` option (`IOS` by default).

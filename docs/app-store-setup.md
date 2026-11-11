@@ -70,7 +70,7 @@ npx storelingo push --store appstore --dry-run  # show the diff, change nothing
 npx storelingo push --store appstore            # show the diff, ask, then upload
 ```
 
-Without `--store`, `pull` and `push` run every configured store, Google Play first and then the App Store, each with its own diff and its own confirmation. A failure (an API error, a missing key, `E_NO_EDITABLE_VERSION`) stops the run. A blocked push (`check` errors or listing problems) is reported and the run continues with the next store; the exit code is then 1.
+Without `--store`, `pull` and `push` run every configured store, Google Play first and then the App Store, each with its own diff and its own confirmation. The credentials of every selected store are loaded first, before any store is touched, so a missing App Store key stops the run before Google Play is pushed. A failure (an API error, `E_NO_EDITABLE_VERSION`) stops the run. A blocked push (`check` errors or listing problems) is reported and the run continues with the next store; the exit code is then 1.
 
 Things to know:
 
@@ -104,21 +104,21 @@ A field that has no resource to go to is never sent. It is shown in the diff as 
 ru/description: skipped (no editable version in App Store Connect)
 ```
 
-(the same wording is used when the editable app info is missing). `push` also prints a note at the start when something is missing, for example "No editable App Store version: only promotional text can be updated. Create a new version in App Store Connect to change the rest." If skipped lines are the only changes, `push` stops with `E_NO_EDITABLE_VERSION` (exit code 1). If some changes can go through, they are pushed, and the final message says some changes were skipped.
+The reason depends on the field: "no editable version in App Store Connect" for version fields, "no editable app info in App Store Connect" for name, subtitle and privacy URL, and "Apple shows release notes only for updates" for release notes on the **first version of an app** (they are not sent; the note "First version of the app: release notes are not sent (Apple shows them only for updates)." is printed at the start). `push` also prints a note at the start when something is missing, for example "No editable App Store version: only promotional text can be updated. Create a new version in App Store Connect to change the rest." (with no version at all: "No App Store version yet: version texts can't be updated until a version exists."). If skipped lines are the only changes, `push` prints them and stops with `E_NO_EDITABLE_VERSION` (exit code 1); this also holds for `push --dry-run`, so a dry run can exit 1. If several versions (or app infos) are editable, storelingo uses the one in `PREPARE_FOR_SUBMISSION`; if that is still ambiguous it stops with `E_STORE` "Several editable App Store versions found; finish or remove the extra one in App Store Connect". If some changes can go through, they are pushed, and the final message says some changes were skipped.
 
 A **new language** needs `name`, `description` and `keywords` locally, and both an editable app info and an editable version. Otherwise `push` reports it as a problem and sends nothing.
 
 ## Push is not atomic
 
-The App Store Connect API has no transaction. `push` computes the diff first and then applies it one language at a time (each language needs one or two requests). If a request fails in the middle, languages already applied stay applied, and the language whose request failed may be partly applied (for example the app info was updated but the version was not). The error message then lists them:
+The App Store Connect API has no transaction. `push` computes the diff first and then applies it one language at a time (each language needs one or two requests). If a request fails in the middle, languages already applied stay applied, and the language whose request failed may be partly applied (for example the app info was updated but the version was not). Only the changed fields are sent. The error message then lists three groups:
 
 ```
-... — already applied: ru, de; not applied: tr
+... — already applied: ru, de; failed (may be partly applied): tr; not attempted: fr
 ```
 
-("not applied" includes the language that failed.) This message appears only when at least one language was applied before the failure; otherwise you get the plain error. The hint is "Re-run `storelingo push`: it only sends what still differs." Re-running is safe either way: storelingo reads the store again and sends only what still differs.
+("none" is printed for an empty group.) This message appears for every failure of an App Store update, including one on the first language. The original error code is kept. The hint is "Re-run `storelingo push`: it only sends what still differs." Re-running is safe either way: storelingo reads the store again and sends only what still differs.
 
-Requests that create a new localization are never retried. If such a request gets no clear answer (network error, timeout, HTTP 429/5xx), storelingo reports `E_STORE` "App Store Connect create request status is unknown"; run `storelingo push --dry-run` to see whether the localization was created.
+Requests that create a new localization are never retried. If such a request gets no clear answer (network error, timeout, HTTP 5xx), storelingo reports `E_STORE` "App Store Connect create request status is unknown"; run `storelingo push --dry-run` to see whether the localization was created. A 429 on such a request means nothing was created: you get `E_STORE` "App Store Connect rate limit (429): nothing was created; try again in a minute".
 
 ## Troubleshooting
 

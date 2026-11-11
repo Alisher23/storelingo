@@ -70,7 +70,7 @@ npx storelingo push --store appstore --dry-run  # показать diff, нич�
 npx storelingo push --store appstore            # показать diff, спросить, затем загрузить
 ```
 
-Без `--store` `pull` и `push` обрабатывают все настроенные магазины: сначала Google Play, затем App Store, у каждого свой diff и своё подтверждение. Сбой (ошибка API, нет ключа, `E_NO_EDITABLE_VERSION`) останавливает запуск. Заблокированный push (ошибки `check` или проблемы карточек) сообщается, а запуск продолжается со следующим магазином; код выхода при этом 1.
+Без `--store` `pull` и `push` обрабатывают все настроенные магазины: сначала Google Play, затем App Store, у каждого свой diff и своё подтверждение. Учётные данные всех выбранных магазинов загружаются в первую очередь, до обращения к любому магазину, поэтому отсутствие ключа App Store останавливает запуск ещё до загрузки в Google Play. Сбой (ошибка API, `E_NO_EDITABLE_VERSION`) останавливает запуск. Заблокированный push (ошибки `check` или проблемы карточек) сообщается, а запуск продолжается со следующим магазином; код выхода при этом 1.
 
 Что важно знать:
 
@@ -104,21 +104,21 @@ App Store Connect хранит тексты версии, которая гот�
 ru/description: skipped (no editable version in App Store Connect)
 ```
 
-(та же формулировка используется, когда нет редактируемого app info). В начале `push` также печатает примечание, если чего-то не хватает, например «No editable App Store version: only promotional text can be updated. Create a new version in App Store Connect to change the rest.» Если единственные изменения — пропущенные строки, `push` останавливается с `E_NO_EDITABLE_VERSION` (код выхода 1). Если часть изменений можно залить, они заливаются, а итоговое сообщение говорит, что часть изменений пропущена.
+Причина зависит от поля: «no editable version in App Store Connect» для полей версии, «no editable app info in App Store Connect» для name, subtitle и privacy URL, «Apple shows release notes only for updates» для release notes в **первой версии приложения** (они не отправляются; в начале печатается примечание «First version of the app: release notes are not sent (Apple shows them only for updates).»). В начале `push` также печатает примечание, если чего-то не хватает, например «No editable App Store version: only promotional text can be updated. Create a new version in App Store Connect to change the rest.» (если версий нет вообще: «No App Store version yet: version texts can't be updated until a version exists.»). Если единственные изменения — пропущенные строки, `push` печатает их и останавливается с `E_NO_EDITABLE_VERSION` (код выхода 1); это верно и для `push --dry-run`, так что пробный запуск может завершиться с кодом 1. Если редактируемых версий (или app info) несколько, storelingo берёт ту, что в `PREPARE_FOR_SUBMISSION`; если и так неоднозначно, останавливается с `E_STORE` «Several editable App Store versions found; finish or remove the extra one in App Store Connect». Если часть изменений можно залить, они заливаются, а итоговое сообщение говорит, что часть изменений пропущена.
 
 Для **нового языка** локально нужны `name`, `description` и `keywords`, а также и редактируемый app info, и редактируемая версия. Иначе `push` сообщит о проблеме и ничего не отправит.
 
 ## Push не атомарен
 
-У API App Store Connect нет транзакций. `push` сначала считает diff, затем применяет его по одному языку (на язык уходит один-два запроса). Если запрос падает посреди работы, уже применённые языки остаются применёнными. Язык, на котором запрос упал, может быть применён частично (например, app info обновлён, а версия нет). Сообщение об ошибке перечисляет их:
+У API App Store Connect нет транзакций. `push` сначала считает diff, затем применяет его по одному языку (на язык уходит один-два запроса). Если запрос падает посреди работы, уже применённые языки остаются применёнными. Язык, на котором запрос упал, может быть применён частично (например, app info обновлён, а версия нет). Отправляются только изменённые поля. Сообщение об ошибке перечисляет три группы:
 
 ```
-... — already applied: ru, de; not applied: tr
+... — already applied: ru, de; failed (may be partly applied): tr; not attempted: fr
 ```
 
-(«not applied» включает язык, на котором произошёл сбой.) Это сообщение появляется только если до сбоя был применён хотя бы один язык; иначе вы получите обычную ошибку. Подсказка: «Re-run `storelingo push`: it only sends what still differs.» Повторный запуск безопасен в любом случае: storelingo заново читает магазин и отправляет только то, что ещё отличается.
+(для пустой группы печатается «none».) Это сообщение появляется при любом сбое обновления App Store, в том числе на первом языке. Исходный код ошибки сохраняется. Подсказка: «Re-run `storelingo push`: it only sends what still differs.» Повторный запуск безопасен в любом случае: storelingo заново читает магазин и отправляет только то, что ещё отличается.
 
-Запросы, создающие новую локализацию, никогда не повторяются. Если такой запрос не получил внятного ответа (сетевая ошибка, тайм-аут, HTTP 429/5xx), storelingo сообщает `E_STORE` «App Store Connect create request status is unknown»; запустите `storelingo push --dry-run`, чтобы увидеть, создана ли локализация.
+Запросы, создающие новую локализацию, никогда не повторяются. Если такой запрос не получил внятного ответа (сетевая ошибка, тайм-аут, HTTP 5xx), storelingo сообщает `E_STORE` «App Store Connect create request status is unknown»; запустите `storelingo push --dry-run`, чтобы увидеть, создана ли локализация. Ответ 429 на такой запрос означает, что ничего не создано: вы получите `E_STORE` «App Store Connect rate limit (429): nothing was created; try again in a minute».
 
 ## Диагностика
 
