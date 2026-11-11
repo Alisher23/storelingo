@@ -4,7 +4,7 @@ How to let storelingo read (`pull`) and update (`push`) your App Store listings.
 
 [Русская версия](app-store-setup.ru.md)
 
-storelingo talks to the App Store Connect API with a **team API key**: a `.p8` private key plus two identifiers (Key ID and Issuer ID). Everything is read only from environment variables. Nothing is written to the config file. Individual keys (without an Issuer ID) are not supported.
+storelingo talks to the App Store Connect API with a **team API key**: a `.p8` private key plus two identifiers (Key ID and Issuer ID). The credentials (Key ID, Issuer ID and the key) come only from environment variables and are never written to the config file; only the app's Apple ID (`stores.appstore.appId`) lives in the config. Individual keys (without an Issuer ID) are not supported.
 
 ## 1. Create a team API key
 
@@ -70,7 +70,7 @@ npx storelingo push --store appstore --dry-run  # show the diff, change nothing
 npx storelingo push --store appstore            # show the diff, ask, then upload
 ```
 
-Without `--store`, `pull` and `push` run every configured store, Google Play first and then the App Store, each with its own diff and its own confirmation. An error in one store stops the run before the next one starts.
+Without `--store`, `pull` and `push` run every configured store, Google Play first and then the App Store, each with its own diff and its own confirmation. A failure (an API error, a missing key, `E_NO_EDITABLE_VERSION`) stops the run. A blocked push (`check` errors or listing problems) is reported and the run continues with the next store; the exit code is then 1.
 
 Things to know:
 
@@ -110,13 +110,13 @@ A **new language** needs `name`, `description` and `keywords` locally, and both 
 
 ## Push is not atomic
 
-The App Store Connect API has no transaction. `push` computes the diff first and then applies it one language at a time (each language needs one or two requests). If a request fails in the middle, languages already applied stay applied. The error message then lists them:
+The App Store Connect API has no transaction. `push` computes the diff first and then applies it one language at a time (each language needs one or two requests). If a request fails in the middle, languages already applied stay applied, and the language whose request failed may be partly applied (for example the app info was updated but the version was not). The error message then lists them:
 
 ```
 ... — already applied: ru, de; not applied: tr
 ```
 
-with the hint "Re-run `storelingo push`: it only sends what still differs." Re-running is safe: storelingo reads the store again and sends only what still differs.
+("not applied" includes the language that failed.) This message appears only when at least one language was applied before the failure; otherwise you get the plain error. The hint is "Re-run `storelingo push`: it only sends what still differs." Re-running is safe either way: storelingo reads the store again and sends only what still differs.
 
 Requests that create a new localization are never retried. If such a request gets no clear answer (network error, timeout, HTTP 429/5xx), storelingo reports `E_STORE` "App Store Connect create request status is unknown"; run `storelingo push --dry-run` to see whether the localization was created.
 

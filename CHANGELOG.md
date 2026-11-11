@@ -8,7 +8,7 @@
 - Fields are routed to the resource that can take them: `name`, `subtitle`, `privacy_url` to the editable app info; `description`, `keywords`, `release_notes`, `marketing_url`, `support_url` to the editable version; `promotional_text` to the editable version or else the live one. Changes with no such resource are shown as skipped and never sent.
 - Requests that create a localization are never retried; a lost response is reported as "status is unknown".
 - New `stores.appstore.platform` option (`IOS` by default).
-- New error codes `E_AUTH_ASC` and `E_NO_EDITABLE_VERSION`.
+- Error codes `E_AUTH_ASC` and `E_NO_EDITABLE_VERSION` are now used.
 - `STORELINGO_ASC_PRIVATE_KEY` is masked in logs and errors.
 
 ## 0.2.0 — unreleased
