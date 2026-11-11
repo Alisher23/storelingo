@@ -17,7 +17,7 @@ const answers: InitAnswers = {
 describe("buildConfigJson", () => {
   it("produces a valid config", () => {
     const config = parseConfig(buildConfigJson(answers));
-    expect(config.stores).toEqual({ play: { packageName: "com.example.app" }, appstore: { appId: "123" } });
+    expect(config.stores).toEqual({ play: { packageName: "com.example.app" }, appstore: { appId: "123", platform: "IOS" } });
     expect(config.translator.provider).toBe("anthropic");
   });
   it("does not write a $schema URL (no schema is published)", () => {

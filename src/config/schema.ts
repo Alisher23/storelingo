@@ -33,7 +33,12 @@ export const ConfigSchema = z.strictObject({
   stores: z
     .strictObject({
       play: z.strictObject({ packageName: z.string().min(1) }).optional(),
-      appstore: z.strictObject({ appId: z.string().min(1) }).optional(),
+      appstore: z
+        .strictObject({
+          appId: z.string().regex(/^\d+$/, "must be the numeric Apple ID of the app"),
+          platform: z.enum(["IOS", "MAC_OS", "TV_OS", "VISION_OS"]).default("IOS"),
+        })
+        .optional(),
     })
     .refine((s) => s.play !== undefined || s.appstore !== undefined, {
       message: "configure at least one store (play or appstore)",

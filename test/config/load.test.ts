@@ -136,4 +136,12 @@ describe("loadConfig", () => {
     await writeFile(file, "{ not json");
     await expect(loadConfig(file)).rejects.toMatchObject({ code: "E_CONFIG" });
   });
+
+  it("defaults the App Store platform to IOS and requires a numeric appId", () => {
+    const cfg = parseConfig({ ...minimal, stores: { appstore: { appId: "1234567890" } } });
+    expect(cfg.stores.appstore).toEqual({ appId: "1234567890", platform: "IOS" });
+    expect(() => parseConfig({ ...minimal, stores: { appstore: { appId: "com.example" } } })).toThrow(
+      "stores.appstore.appId",
+    );
+  });
 });
