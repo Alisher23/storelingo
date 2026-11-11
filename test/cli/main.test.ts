@@ -244,12 +244,85 @@ describe("pull/push", () => {
     expect(s.err.join("\n")).toContain("Push blocked");
   });
 
-  it("--store appstore is not supported yet", async () => {
+  it("--store appstore with a play-only config is a config error", async () => {
     const { cwd } = await makeProject(files, config);
     const s = storeDeps(cwd);
     expect(await run(s.d, "push", "--store", "appstore", "--yes")).toBe(2);
-    expect(s.err.join("\n")).toContain("v0.3");
+    expect(s.err.join("\n")).toContain("stores.appstore is not configured");
     expect(s.makeStore).not.toHaveBeenCalled();
+  });
+
+  it("--store foo is a usage error before any network call", async () => {
+    const { cwd } = await makeProject(files, config);
+    const s = storeDeps(cwd);
+    expect(await run(s.d, "pull", "--store", "foo")).toBe(2);
+    expect(s.err.join("\n")).toContain('--store must be play or appstore, got "foo"');
+    expect(s.makeStore).not.toHaveBeenCalled();
+  });
+
+  it("--store appstore pulls via the appstore store", async () => {
+    const appOnly = { ...config, stores: { appstore: { appId: "123", platform: "IOS" } } };
+    const { cwd } = await makeProject({ "storelingo.config.json": JSON.stringify(appOnly) }, appOnly);
+    const fake = fakeStore([{ locale: "en-US", fields: { name: "Prayer Times" } }], { store: "appstore" });
+    const makeStore = vi.fn(async () => fake.client);
+    const s = deps(cwd, { makeStore, isTTY: false });
+    expect(await run(s.d, "pull", "--store", "appstore")).toBe(0);
+    expect(makeStore).toHaveBeenCalledWith("appstore", expect.anything(), expect.anything());
+    expect(await readFile(join(cwd, "fastlane/metadata/en-US/name.txt"), "utf8")).toBe("Prayer Times");
+    expect(s.out.join("\n")).toContain("Pulled from App Store");
+  });
+
+  describe("both stores configured", () => {
+    const both = {
+      ...config,
+      stores: { play: { packageName: "com.example" }, appstore: { appId: "123", platform: "IOS" } },
+    };
+    const bothFiles = {
+      ...files,
+      "storelingo.config.json": JSON.stringify(both),
+      "fastlane/metadata/en-US/name.txt": "Prayer Times",
+      "fastlane/metadata/en-US/description.txt": "Long",
+      "fastlane/metadata/en-US/keywords.txt": "prayer,times",
+    };
+    const setup = async (projectFiles: Record<string, string>, extra: Partial<CliDeps> = {}) => {
+      const { cwd } = await makeProject(projectFiles, both);
+      const play = fakeStore(remoteListings);
+      const app = fakeStore([{ locale: "en-US", fields: { name: "Old" } }], { store: "appstore" });
+      const makeStore = vi.fn(async (store: string) => (store === "play" ? play.client : app.client));
+      const d = deps(cwd, { makeStore, isTTY: false, ...extra });
+      return { ...d, play, app, makeStore };
+    };
+
+    it("runs play then appstore and asks once per store", async () => {
+      const confirm = vi.fn<(message: string) => Promise<boolean>>(async () => true);
+      const s = await setup(bothFiles, { confirm });
+      expect(await run(s.d, "push")).toBe(0);
+      expect(s.makeStore.mock.calls.map((c) => c[0])).toEqual(["play", "appstore"]);
+      expect(confirm.mock.calls.map((c) => c[0])).toEqual([
+        "Upload these changes to Google Play?",
+        "Upload these changes to App Store?",
+      ]);
+      expect(s.out.join("\n")).toContain("Updated 1 App Store localization(s): en-US.");
+    });
+
+    it("exits 1 when the App Store push is blocked even if Play succeeded", async () => {
+      const s = await setup({ ...bothFiles, "fastlane/metadata/en-US/name.txt": "x".repeat(31) });
+      expect(await run(s.d, "push", "--yes")).toBe(1);
+      expect(s.play.state.committed).toBe(1);
+      expect(s.err.join("\n")).toContain("Push blocked");
+    });
+  });
+
+  it("masks STORELINGO_ASC_PRIVATE_KEY in error output", async () => {
+    const { cwd } = await makeProject(files, config);
+    const secret = "asc-private-key-body-456";
+    const makeStore = vi.fn(async () => {
+      throw new StorelingoError("E_STORE", `boom ${secret} boom`);
+    });
+    const s = storeDeps(cwd, { makeStore, env: { STORELINGO_ASC_PRIVATE_KEY: secret } });
+    expect(await run(s.d, "push", "--yes")).toBe(1);
+    expect(s.err.join("\n")).not.toContain(secret);
+    expect(s.err.join("\n")).toContain("***");
   });
 
   it("E_IN_REVIEW from the store exits 1 with its message", async () => {
@@ -260,11 +333,11 @@ describe("pull/push", () => {
     expect(s.err.join("\n")).toContain("error [E_IN_REVIEW]");
   });
 
-  it("push without stores.play is a config error", async () => {
+  it("push --store play without stores.play is a config error", async () => {
     const appOnly = { ...config, stores: { appstore: { appId: "1" } } };
     const { cwd } = await makeProject({ "storelingo.config.json": JSON.stringify(appOnly) }, appOnly);
     const s = storeDeps(cwd);
-    expect(await run(s.d, "push", "--yes")).toBe(2);
+    expect(await run(s.d, "push", "--store", "play", "--yes")).toBe(2);
     expect(s.err.join("\n")).toContain("stores.play is not configured");
     expect(s.makeStore).not.toHaveBeenCalled();
   });
