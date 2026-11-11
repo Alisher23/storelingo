@@ -2,7 +2,7 @@
 
 ИИ-локализация карточек Google Play и App Store. Работает с метаданными fastlane — сам fastlane не нужен.
 
-> Статус: v0.2, в npm пока не опубликован. Команды ниже показывают планируемое использование (`npx storelingo`). До первого релиза собирайте из исходников (см. [CONTRIBUTING.md](https://github.com/Alisher23/storelingo/blob/main/CONTRIBUTING.md)).
+> Статус: v0.3, в npm пока не опубликован. Команды ниже показывают планируемое использование (`npx storelingo`). До первого релиза собирайте из исходников (см. [CONTRIBUTING.md](https://github.com/Alisher23/storelingo/blob/main/CONTRIBUTING.md)).
 
 [English version](README.md)
 
@@ -94,7 +94,8 @@ fastlane/metadata/                  # App Store (fastlane deliver)
 | `sourceLocale` | да | Код локали storelingo для исходных текстов, например `en-US`. |
 | `targetLocales` | да | Непустой список кодов локалей storelingo, на которые переводить, без повторов. |
 | `stores.play.packageName` | нужен хотя бы один магазин | Включает Google Play. |
-| `stores.appstore.appId` | нужен хотя бы один магазин | Включает App Store. |
+| `stores.appstore.appId` | нужен хотя бы один магазин | Включает App Store. Числовой Apple ID приложения. |
+| `stores.appstore.platform` | нет (по умолчанию `IOS`) | `IOS`, `MAC_OS`, `TV_OS` или `VISION_OS`: платформа, с версией которой работает storelingo. |
 | `translator.provider` | да | `anthropic` или `openai-compatible`. |
 | `translator.model` | `anthropic`: нет (по умолчанию `claude-opus-5-5`); `openai-compatible`: да | Название модели. |
 | `translator.effort` | нет, только `anthropic` | `low`, `medium` (по умолчанию), `high`, `xhigh` или `max`. |
@@ -119,6 +120,9 @@ fastlane/metadata/                  # App Store (fastlane deliver)
 | `STORELINGO_TRANSLATOR_API_KEY` | Любой другой OpenAI-совместимый хост (OpenRouter, endpoint Gemini и т.д.). |
 | `STORELINGO_TRANSLATOR_API_HOST` | Хост, к которому разрешено обращаться OpenAI-совместимому провайдеру. Обязателен для любого нелокального хоста, кроме `api.openai.com`, даже без ключа; единственный хост, который получает `STORELINGO_TRANSLATOR_API_KEY`. |
 | `STORELINGO_PLAY_SERVICE_ACCOUNT` | `pull` / `push` для Google Play: путь к JSON-ключу сервисного аккаунта или сам JSON. См. [Google Play](#google-play). |
+| `STORELINGO_ASC_ISSUER_ID` | `pull` / `push` для App Store: Issuer ID командного API-ключа App Store Connect. См. [App Store](#app-store). |
+| `STORELINGO_ASC_KEY_ID` | `pull` / `push` для App Store: Key ID этого ключа. |
+| `STORELINGO_ASC_PRIVATE_KEY` | `pull` / `push` для App Store: путь к закрытому ключу `.p8` или его содержимое (последовательности `\n` буквально принимаются как переводы строк). |
 
 Правила для `openai-compatible`:
 
@@ -173,7 +177,7 @@ storelingo [--config <path>] [--verbose] [--no-color] <command>
 | `pull [--store <store>] [--force]` | Скачивает текущие тексты из магазина в папки fastlane. Локальные файлы, отличающиеся от магазина, остаются нетронутыми, если не указан `--force`. Магазин не меняет. |
 | `push [--store <store>] [--dry-run] [--yes]` | Запускает `check`, показывает diff с живой карточкой и после подтверждения загружает. `--dry-run` только показывает diff. Вне терминала нужен `--yes` или `--dry-run`. |
 
-`--store` в v0.2 принимает только `play` (значение по умолчанию). `--store appstore` завершается с кодом 2 («arrives in v0.3»). Если `stores.play` не настроен, `pull` и `push` останавливаются с ошибкой конфигурации.
+`--store` принимает `play` или `appstore`. Без него `pull` и `push` обрабатывают все настроенные магазины: сначала Google Play, затем App Store, у каждого свой diff и своё подтверждение. С `--store` магазин должен быть настроен (`stores.play` или `stores.appstore`), иначе команда останавливается с ошибкой конфигурации.
 
 Глобальные флаги: `--config <path>` (по умолчанию `storelingo.config.json`), `--verbose` (отладочный вывод), `--no-color`, `--version`, `--help`.
 
@@ -182,8 +186,8 @@ storelingo [--config <path>] [--verbose] [--no-color] <command>
 | Код | Значение |
 |---|---|
 | `0` | Успех. |
-| `1` | `check` нашёл ошибки, часть переводов не удалась, `push` заблокирован ошибками `check` или проблемой карточки, либо произошла ошибка во время работы (например, исходная локаль не поддерживается одним из магазинов, файл не удалось прочитать или записать, Google Play отказал в доступе (`E_AUTH_PLAY`), изменения уже на проверке (`E_IN_REVIEW`) или API Play вернул ошибку (`E_STORE`)). |
-| `2` | Неверное использование или конфиг: неверный флаг, `--locale` вне `targetLocales`, нет или некорректный конфиг, `paths` за пределами проекта, символическая ссылка в папках метаданных или на месте lock-файла, повреждённый lock-файл, нет API-ключа или хост `baseUrl` не разрешён через `STORELINGO_TRANSLATOR_API_HOST`, нет или некорректен `STORELINGO_PLAY_SERVICE_ACCOUNT`, ответ Google Play 404 («app not found or not accessible»), не настроен `stores.play`, `--store appstore`, либо `push` без `--yes` вне терминала. |
+| `1` | `check` нашёл ошибки, часть переводов не удалась, `push` заблокирован ошибками `check` или проблемой карточки, либо произошла ошибка во время работы (например, исходная локаль не поддерживается одним из магазинов, файл не удалось прочитать или записать, Google Play отказал в доступе (`E_AUTH_PLAY`), изменения уже на проверке (`E_IN_REVIEW`), App Store Connect отказал в доступе (`E_AUTH_ASC`), для изменений нет редактируемой версии App Store (`E_NO_EDITABLE_VERSION`) или API магазина вернул ошибку (`E_STORE`)). |
+| `2` | Неверное использование или конфиг: неверный флаг, `--locale` вне `targetLocales`, нет или некорректный конфиг, `paths` за пределами проекта, символическая ссылка в папках метаданных или на месте lock-файла, повреждённый lock-файл, нет API-ключа или хост `baseUrl` не разрешён через `STORELINGO_TRANSLATOR_API_HOST`, нет или некорректен `STORELINGO_PLAY_SERVICE_ACCOUNT`, нет или некорректны `STORELINGO_ASC_ISSUER_ID`, `STORELINGO_ASC_KEY_ID` или `STORELINGO_ASC_PRIVATE_KEY`, ответ 404 Google Play или App Store («app not found or not accessible»), значение `--store`, отличное от `play` и `appstore`, `--store` для ненастроенного магазина, либо `push` без `--yes` вне терминала. |
 
 ## Google Play
 
@@ -208,6 +212,31 @@ npx storelingo push
 - Языки, которые есть только в Google Play, никогда не удаляются. Для нового языка нужны `title`, `short_description` и `full_description`.
 - `pull` ничего не фиксирует в магазине и не трогает `storelingo.lock.json`. У скачанных переводов нет записи в lock-файле, поэтому `translate` считает их ручными правками и пропускает; переведите их заново через `translate --force` (можно с `--locale`).
 - Ключ сервисного аккаунта читается только из `STORELINGO_PLAY_SERVICE_ACCOUNT` (путь или сам JSON). Токены запрашиваются на фиксированном адресе Google; `token_uri` из файла ключа игнорируется.
+
+## App Store
+
+`pull` и `push` работают через API App Store Connect с командным API-ключом. Один раз выполните [руководство по настройке App Store](https://github.com/Alisher23/storelingo/blob/main/docs/app-store-setup.ru.md) (API-ключ с ролью App Manager, Apple ID приложения), затем:
+
+```bash
+export STORELINGO_ASC_ISSUER_ID=...
+export STORELINGO_ASC_KEY_ID=...
+export STORELINGO_ASC_PRIVATE_KEY=/path/to/AuthKey_XXXXXXXXXX.p8
+npx storelingo pull --store appstore
+npx storelingo translate
+npx storelingo check
+npx storelingo push --store appstore --dry-run
+npx storelingo push --store appstore
+```
+
+Как это работает:
+
+- **Не атомарно.** У API нет транзакций. `push` сначала считает весь diff, затем применяет его по одному языку. Если запрос падает посреди работы, уже применённые языки остаются применёнными; ошибка перечисляет их («already applied: ...; not applied: ...») и предлагает повторить `storelingo push`. Повторный запуск безопасен: он заново читает магазин и отправляет только то, что ещё отличается.
+- **Поля идут в тот ресурс, который может их принять.** `name`, `subtitle` и `privacy_url` идут в редактируемый app info. `description`, `keywords`, `release_notes`, `marketing_url` и `support_url` идут в редактируемую версию. `promotional_text` идёт в редактируемую версию, а если её нет, в живую. Версия редактируема в состояниях `PREPARE_FOR_SUBMISSION`, `DEVELOPER_REJECTED`, `REJECTED` или `METADATA_REJECTED` (app info: первые три); живая означает `READY_FOR_DISTRIBUTION`. `pull` читает редактируемые ресурсы, если они есть, иначе живые.
+- **Пропущенные строки.** Изменение, которому некуда попасть, не отправляется никогда. В diff оно показано как `<locale>/<field>: skipped (no editable version in App Store Connect)`, а в начале `push` печатает примечание. Если пропущены все изменения, `push` останавливается с `E_NO_EDITABLE_VERSION` (код выхода 1): создайте новую версию в App Store Connect и повторите. Без новой версии можно изменить только промо-текст, и на живой версии он вступает в силу сразу; остальное выходит вместе с версией, которую вы готовите.
+- **Новым языкам** локально нужны `name`, `description` и `keywords`, а также и редактируемый app info, и редактируемая версия.
+- Запрос, создающий локализацию, никогда не повторяется. Если он не получил внятного ответа, storelingo сообщает `E_STORE` «status is unknown»; запустите `push --dry-run`, чтобы увидеть, создана ли она.
+- storelingo никогда не отправляет ничего на ревью, не удаляет языки и не трогает цены, билды, скриншоты и категории.
+- Ключ читается только из переменных `STORELINGO_ASC_*` и никогда не попадает в логи и сообщения об ошибках. Не добавляйте `.p8` в git (`init` дописывает `*.p8` в `.gitignore`).
 
 ## Как работает перевод
 
@@ -283,8 +312,8 @@ npx storelingo push
 ## Планы
 
 - v0.2 (готово): Google Play `pull` / `push`
-- Дальше, v0.3: App Store `pull` / `push`
-- v1.0: GitHub Action
+- v0.3 (готово): App Store `pull` / `push`
+- Дальше, v1.0: GitHub Action
 - Позже: скриншоты, RuStore, Huawei AppGallery
 
 ## Участие в проекте

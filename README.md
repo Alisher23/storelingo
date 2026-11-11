@@ -2,7 +2,7 @@
 
 AI localization for your Google Play and App Store listings. Works with fastlane metadata — no fastlane required.
 
-> Status: v0.2, not yet published to npm. The commands below show the intended usage (`npx storelingo`). Until the first release, build from source (see [CONTRIBUTING.md](https://github.com/Alisher23/storelingo/blob/main/CONTRIBUTING.md)).
+> Status: v0.3, not yet published to npm. The commands below show the intended usage (`npx storelingo`). Until the first release, build from source (see [CONTRIBUTING.md](https://github.com/Alisher23/storelingo/blob/main/CONTRIBUTING.md)).
 
 [Русская версия](README.ru.md)
 
@@ -94,7 +94,8 @@ For Google Play, the newest changelog (highest version code) of the source local
 | `sourceLocale` | yes | storelingo locale code of your source texts, e.g. `en-US`. |
 | `targetLocales` | yes | Non-empty list of storelingo locale codes to translate into, without duplicates. |
 | `stores.play.packageName` | one store required | Enables Google Play. |
-| `stores.appstore.appId` | one store required | Enables the App Store. |
+| `stores.appstore.appId` | one store required | Enables the App Store. The numeric Apple ID of the app. |
+| `stores.appstore.platform` | no (default `IOS`) | `IOS`, `MAC_OS`, `TV_OS` or `VISION_OS`: the platform whose version storelingo works with. |
 | `translator.provider` | yes | `anthropic` or `openai-compatible`. |
 | `translator.model` | `anthropic`: no (default `claude-opus-5-5`); `openai-compatible`: yes | Model name. |
 | `translator.effort` | no, `anthropic` only | `low`, `medium` (default), `high`, `xhigh` or `max`. |
@@ -119,6 +120,9 @@ Keys come only from environment variables. They are never written to the config,
 | `STORELINGO_TRANSLATOR_API_KEY` | Any other OpenAI-compatible host (OpenRouter, Gemini endpoint, ...). |
 | `STORELINGO_TRANSLATOR_API_HOST` | The host the OpenAI-compatible provider may talk to. Required for every non-local host other than `api.openai.com`, even without a key; the only host that receives `STORELINGO_TRANSLATOR_API_KEY`. |
 | `STORELINGO_PLAY_SERVICE_ACCOUNT` | Google Play `pull` / `push`: the path to the service account JSON key, or the JSON itself. See [Google Play](#google-play). |
+| `STORELINGO_ASC_ISSUER_ID` | App Store `pull` / `push`: the Issuer ID of the App Store Connect team API key. See [App Store](#app-store). |
+| `STORELINGO_ASC_KEY_ID` | App Store `pull` / `push`: the Key ID of that key. |
+| `STORELINGO_ASC_PRIVATE_KEY` | App Store `pull` / `push`: the path to the `.p8` private key, or its contents (literal `\n` sequences are accepted as line breaks). |
 
 Rules for `openai-compatible`:
 
@@ -173,7 +177,7 @@ storelingo [--config <path>] [--verbose] [--no-color] <command>
 | `pull [--store <store>] [--force]` | Downloads the current store listings into the fastlane folders. Local files that differ from the store are kept unless you pass `--force`. Never changes the store. |
 | `push [--store <store>] [--dry-run] [--yes]` | Runs `check`, shows the diff with the live listing and uploads after confirmation. `--dry-run` only shows the diff. Outside a terminal it needs `--yes` or `--dry-run`. |
 
-`--store` accepts only `play` in v0.2 (the default). `--store appstore` stops with exit code 2 ("arrives in v0.3"). If `stores.play` is not configured, `pull` and `push` stop with a config error.
+`--store` accepts `play` or `appstore`. Without it, `pull` and `push` run every configured store, Google Play first and then the App Store, each with its own diff and confirmation. With `--store`, the store must be configured (`stores.play` or `stores.appstore`), otherwise the command stops with a config error.
 
 Global flags: `--config <path>` (default `storelingo.config.json`), `--verbose` (debug output), `--no-color`, `--version`, `--help`.
 
@@ -182,8 +186,8 @@ Exit codes:
 | Code | Meaning |
 |---|---|
 | `0` | Success. |
-| `1` | `check` found errors, some translations failed, `push` was blocked by `check` errors or by a listing problem, or a runtime error (for example the source locale is not supported by a configured store, a file could not be read or written, Google Play denied access (`E_AUTH_PLAY`), changes are already in review (`E_IN_REVIEW`) or the Play API failed (`E_STORE`)). |
-| `2` | Bad usage or config: invalid flag, `--locale` outside `targetLocales`, missing or invalid config, `paths` outside the project, a symbolic link in the metadata folders or at the lock file, a corrupt lock file, missing API key or a `baseUrl` host not allowed by `STORELINGO_TRANSLATOR_API_HOST`, a missing or invalid `STORELINGO_PLAY_SERVICE_ACCOUNT`, a Google Play 404 ("app not found or not accessible"), `stores.play` not configured, `--store appstore`, or `push` without `--yes` outside a terminal. |
+| `1` | `check` found errors, some translations failed, `push` was blocked by `check` errors or by a listing problem, or a runtime error (for example the source locale is not supported by a configured store, a file could not be read or written, Google Play denied access (`E_AUTH_PLAY`), changes are already in review (`E_IN_REVIEW`), App Store Connect denied access (`E_AUTH_ASC`), there is no editable App Store version for any of the changes (`E_NO_EDITABLE_VERSION`) or a store API failed (`E_STORE`)). |
+| `2` | Bad usage or config: invalid flag, `--locale` outside `targetLocales`, missing or invalid config, `paths` outside the project, a symbolic link in the metadata folders or at the lock file, a corrupt lock file, missing API key or a `baseUrl` host not allowed by `STORELINGO_TRANSLATOR_API_HOST`, a missing or invalid `STORELINGO_PLAY_SERVICE_ACCOUNT`, missing or invalid `STORELINGO_ASC_ISSUER_ID`, `STORELINGO_ASC_KEY_ID` or `STORELINGO_ASC_PRIVATE_KEY`, a Google Play or App Store 404 ("app not found or not accessible"), a `--store` value other than `play` or `appstore`, a `--store` for a store that is not configured, or `push` without `--yes` outside a terminal. |
 
 ## Google Play
 
@@ -208,6 +212,31 @@ How it behaves:
 - Languages that exist only in Google Play are never deleted. A new language needs `title`, `short_description` and `full_description`.
 - `pull` never commits anything and never touches `storelingo.lock.json`. Pulled translations have no lock entry, so `translate` treats them as manual edits and skips them; re-translate them with `translate --force` (optionally with `--locale`).
 - The service account key is read only from `STORELINGO_PLAY_SERVICE_ACCOUNT` (a path or the JSON itself). Tokens are requested from Google's fixed token endpoint; the `token_uri` inside the key file is ignored.
+
+## App Store
+
+`pull` and `push` use the App Store Connect API with a team API key. Follow the [App Store setup guide](https://github.com/Alisher23/storelingo/blob/main/docs/app-store-setup.md) once (API key with the App Manager role, Apple ID of the app), then:
+
+```bash
+export STORELINGO_ASC_ISSUER_ID=...
+export STORELINGO_ASC_KEY_ID=...
+export STORELINGO_ASC_PRIVATE_KEY=/path/to/AuthKey_XXXXXXXXXX.p8
+npx storelingo pull --store appstore
+npx storelingo translate
+npx storelingo check
+npx storelingo push --store appstore --dry-run
+npx storelingo push --store appstore
+```
+
+How it behaves:
+
+- **Not atomic.** The API has no transaction. `push` computes the whole diff first and then applies it one language at a time. If a request fails midway, the languages already applied stay applied; the error lists them ("already applied: ...; not applied: ...") and tells you to re-run `storelingo push`. Re-running is safe: it reads the store again and sends only what still differs.
+- **Fields go to the resource that can take them.** `name`, `subtitle` and `privacy_url` go to the editable app info. `description`, `keywords`, `release_notes`, `marketing_url` and `support_url` go to the editable version. `promotional_text` goes to the editable version, or to the live version if there is no editable one. A version is editable in the states `PREPARE_FOR_SUBMISSION`, `DEVELOPER_REJECTED`, `REJECTED` or `METADATA_REJECTED` (app info: the first three); live means `READY_FOR_DISTRIBUTION`. `pull` reads the editable resources if they exist, otherwise the live ones.
+- **Skipped lines.** A change that has no resource to go to is never sent. It is shown in the diff as `<locale>/<field>: skipped (no editable version in App Store Connect)`, and `push` prints a note at the start. If every change is skipped, `push` stops with `E_NO_EDITABLE_VERSION` (exit code 1): create a new version in App Store Connect and push again. Without a new version only the promotional text can change, and on the live version it takes effect right away; the rest goes live with the version you prepare.
+- **New languages** need `name`, `description` and `keywords` locally and both an editable app info and an editable version.
+- A request that creates a localization is never retried. If it gets no clear answer, storelingo reports `E_STORE` "status is unknown"; run `push --dry-run` to see whether it was created.
+- storelingo never submits anything for review, never deletes languages and never touches prices, builds, screenshots or categories.
+- The key is read only from the `STORELINGO_ASC_*` variables and never appears in logs or error messages. Keep the `.p8` out of git (`init` adds `*.p8` to `.gitignore`).
 
 ## How translation works
 
@@ -283,8 +312,8 @@ Generated from `src/locales/table.ts`. "—" means the store does not support th
 ## Roadmap
 
 - v0.2 (done): Google Play `pull` / `push`
-- Next, v0.3: App Store `pull` / `push`
-- v1.0: GitHub Action
+- v0.3 (done): App Store `pull` / `push`
+- Next, v1.0: GitHub Action
 - Later: screenshots, RuStore, Huawei AppGallery
 
 ## Contributing

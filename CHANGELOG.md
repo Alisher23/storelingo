@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — unreleased
+
+- App Store `pull` / `push` (`--store appstore`) through the App Store Connect API with a team API key (`STORELINGO_ASC_ISSUER_ID`, `STORELINGO_ASC_KEY_ID`, `STORELINGO_ASC_PRIVATE_KEY`); setup guide in `docs/app-store-setup.md`.
+- `pull` and `push` without `--store` now run every configured store (Google Play, then the App Store), each with its own diff and confirmation.
+- App Store `push` is not atomic: it applies one language at a time and reports partial progress ("already applied ... not applied ..."); re-running only sends what still differs.
+- Fields are routed to the resource that can take them: `name`, `subtitle`, `privacy_url` to the editable app info; `description`, `keywords`, `release_notes`, `marketing_url`, `support_url` to the editable version; `promotional_text` to the editable version or else the live one. Changes with no such resource are shown as skipped and never sent.
+- Requests that create a localization are never retried; a lost response is reported as "status is unknown".
+- New `stores.appstore.platform` option (`IOS` by default).
+- New error codes `E_AUTH_ASC` and `E_NO_EDITABLE_VERSION`.
+- `STORELINGO_ASC_PRIVATE_KEY` is masked in logs and errors.
+
 ## 0.2.0 — unreleased
 
 - `pull`: download the current Google Play listings into the fastlane folders. Never commits and never touches the lock file; keeps different local files unless `--force`.
