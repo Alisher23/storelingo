@@ -19,6 +19,8 @@ export interface StoreSession {
   readonly atomic?: boolean;
   /** Whether this session can write the field; undefined means every field is writable. */
   isWritable?(field: string): boolean;
+  /** Why a non-writable field is skipped, shown as `skipped (<reason>)`; undefined falls back to a generic reason. */
+  skipReason?(field: string): string | undefined;
   /** Human-readable facts about this session to show before the diff (e.g. "no editable version"). */
   readonly notes?: readonly string[];
 }

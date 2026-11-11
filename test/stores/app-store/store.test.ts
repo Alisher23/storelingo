@@ -152,6 +152,92 @@ describe("createAppStoreStore", () => {
     expect(api.createVersionLocalization).not.toHaveBeenCalled();
   });
 
+  it("does not POST a version localization when there is no editable version", async () => {
+    const setup = liveSetup();
+    setup.infoLocs!["i-live"]!.push({ id: "il-ru", attributes: { locale: "ru", name: "Имя" } });
+    const api = fakeApi(setup);
+    const session = await createAppStoreStore(api, opts).open();
+    await session.update({ locale: "ru", fields: { promotional_text: "Промо" } });
+    expect(api.createVersionLocalization).not.toHaveBeenCalled();
+    expect(api.updateVersionLocalization).not.toHaveBeenCalled();
+  });
+
+  describe("several editable resources", () => {
+    it("prefers PREPARE_FOR_SUBMISSION", async () => {
+      const setup = editableSetup();
+      setup.versions = [version("v-rej", "REJECTED"), version("v-ed", "PREPARE_FOR_SUBMISSION")];
+      setup.infos = [info("i-rej", "REJECTED"), info("i-ed", "PREPARE_FOR_SUBMISSION")];
+      const api = fakeApi(setup);
+      const session = await createAppStoreStore(api, opts).open();
+      await session.update({ locale: "en-US", fields: { name: "N", description: "D" } });
+      expect(api.updateAppInfoLocalization).toHaveBeenCalledWith("il-en", { name: "N" });
+      expect(api.updateVersionLocalization).toHaveBeenCalledWith("vl-en", { description: "D" });
+    });
+
+    it("throws E_STORE when it is still ambiguous", async () => {
+      const setup = editableSetup();
+      setup.versions = [version("v-a", "REJECTED"), version("v-b", "METADATA_REJECTED")];
+      await expect(createAppStoreStore(fakeApi(setup), opts).open()).rejects.toMatchObject({
+        code: "E_STORE",
+        message: "Several editable App Store versions found; finish or remove the extra one in App Store Connect",
+      });
+      const infos = editableSetup();
+      infos.infos = [info("i-a", "REJECTED"), info("i-b", "DEVELOPER_REJECTED")];
+      await expect(createAppStoreStore(fakeApi(infos), opts).open()).rejects.toMatchObject({ code: "E_STORE" });
+    });
+  });
+
+  describe("first version of an app", () => {
+    const firstSetup = (): Setup => ({
+      ...editableSetup(),
+      versions: [version("v-ed", "PREPARE_FOR_SUBMISSION")],
+    });
+
+    it("does not write release notes and says why", async () => {
+      const api = fakeApi(firstSetup());
+      const session = await createAppStoreStore(api, opts).open();
+      expect(session.isWritable?.("release_notes")).toBe(false);
+      expect(session.isWritable?.("description")).toBe(true);
+      expect(session.notes).toContain(
+        "First version of the app: release notes are not sent (Apple shows them only for updates).",
+      );
+      expect(session.skipReason?.("release_notes")).toBe("Apple shows release notes only for updates");
+      await session.update({ locale: "en-US", fields: { release_notes: "New", description: "D" } });
+      expect(api.updateVersionLocalization).toHaveBeenCalledWith("vl-en", { description: "D" });
+    });
+
+    it("keeps release notes writable when another version exists", async () => {
+      const session = await createAppStoreStore(fakeApi(editableSetup()), opts).open();
+      expect(session.isWritable?.("release_notes")).toBe(true);
+      expect(session.notes).toEqual([]);
+    });
+  });
+
+  describe("notes and skip reasons", () => {
+    it("says a version is missing when there is none at all", async () => {
+      const setup = { ...editableSetup(), versions: [] };
+      const session = await createAppStoreStore(fakeApi(setup), opts).open();
+      expect(session.notes).toContain(
+        "No App Store version yet: version texts can't be updated until a version exists.",
+      );
+      expect(session.notes?.some((n) => n.includes("only promotional text"))).toBe(false);
+    });
+
+    it("keeps the promotional-text note when only a live version exists", async () => {
+      const session = await createAppStoreStore(fakeApi(liveSetup()), opts).open();
+      expect(session.notes?.some((n) => n.includes("only promotional text can be updated"))).toBe(true);
+    });
+
+    it("gives a reason per field kind", async () => {
+      const session = await createAppStoreStore(fakeApi(liveSetup()), opts).open();
+      expect(session.skipReason?.("name")).toBe("no editable app info in App Store Connect");
+      expect(session.skipReason?.("description")).toBe("no editable version in App Store Connect");
+      expect(session.skipReason?.("bogus")).toBeUndefined();
+      const ok = await createAppStoreStore(fakeApi(editableSetup()), opts).open();
+      expect(ok.skipReason?.("name")).toBeUndefined();
+    });
+  });
+
   it("commit and abort are no-ops", async () => {
     const api = fakeApi(editableSetup());
     const session = await createAppStoreStore(api, opts).open();

@@ -33,10 +33,56 @@ describe("createAscApi", () => {
     expect(res.map((r) => r.id)).toEqual(["a", "b"]);
     expect(fetchImpl.mock.calls[1]![0]).toBe(next);
 
+  });
+
+  it("refuses a pagination link to another host instead of truncating", async () => {
     const evil = vi.fn().mockImplementation(async () =>
       json(200, { data: [{ id: "a", attributes: {} }], links: { next: "https://evil.example/v1/x" } }));
-    expect((await api(evil).listAppInfos("123")).map((r) => r.id)).toEqual(["a"]);
+    await expect(api(evil).listAppInfos("123")).rejects.toMatchObject({
+      code: "E_STORE",
+      message: "App Store Connect returned a pagination link to another host",
+    });
     expect(evil).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops on a repeated pagination link", async () => {
+    const next = `${ASC_API_BASE}/v1/apps/123/appInfos?cursor=abc&limit=200`;
+    const f = vi.fn().mockImplementation(async () => json(200, { data: [{ id: "a", attributes: {} }], links: { next } }));
+    await expect(api(f).listAppInfos("123")).rejects.toMatchObject({
+      code: "E_STORE",
+      message: "App Store Connect pagination did not finish",
+    });
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it("caps the number of pages", async () => {
+    let n = 0;
+    const f = vi.fn().mockImplementation(async () =>
+      json(200, { data: [], links: { next: `${ASC_API_BASE}/v1/apps/123/appInfos?cursor=${++n}` } }));
+    await expect(api(f).listAppInfos("123")).rejects.toMatchObject({
+      code: "E_STORE",
+      message: "App Store Connect pagination did not finish",
+    });
+    expect(f).toHaveBeenCalledTimes(50);
+  });
+
+  it("a 404 on a later page is E_STORE, not app-not-found", async () => {
+    const next = `${ASC_API_BASE}/v1/apps/123/appInfos?cursor=abc`;
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce(json(200, { data: [], links: { next } }))
+      .mockResolvedValueOnce(json(404, errBody("404", "NOT_FOUND", "gone")));
+    await expect(api(f).listAppInfos("123")).rejects.toMatchObject({ code: "E_STORE" });
+  });
+
+  it("a 429 on POST means nothing was created", async () => {
+    const f = vi.fn().mockImplementation(async () => json(429, {}));
+    const err = await api(f).createVersionLocalization("v", { locale: "ru" }).catch((e) => e);
+    expect(err).toMatchObject({
+      code: "E_STORE",
+      message: "App Store Connect rate limit (429): nothing was created; try again in a minute",
+    });
+    expect(f).toHaveBeenCalledTimes(1);
   });
 
   it("filters versions by platform", async () => {

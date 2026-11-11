@@ -32,7 +32,7 @@ describe("loadAscKey", () => {
     expect((await loadAscKey(env(file))).privateKey).toBe(privateKey);
   });
 
-  it("accepts literal \n sequences (CI secrets)", async () => {
+  it("accepts escaped newline sequences (CI secrets)", async () => {
     const escaped = privateKey.trim().split("\n").join(String.fromCharCode(92) + "n"); // backslash + n
     expect(escaped.includes("\n")).toBe(false);
     expect((await loadAscKey(env(escaped))).privateKey.trim()).toBe(privateKey.trim());

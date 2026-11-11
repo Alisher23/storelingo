@@ -56,6 +56,7 @@ interface AscListBody<A> {
   links?: { next?: string };
 }
 
+const MAX_PAGES = 50;
 const CREATE_UNKNOWN_HINT = "Run `storelingo push --dry-run` to see whether the localization was created.";
 
 /** Replaces every occurrence of the bearer token so it never reaches an error message. */
@@ -172,6 +173,13 @@ export function createAscApi(opts: {
       await request("POST", url, body, { retry: false });
     } catch (err) {
       if (err instanceof RetryableError) {
+        if (err.message === "HTTP 429") {
+          // 429 is returned before the request is processed: nothing was created.
+          throw new StorelingoError(
+            "E_STORE",
+            "App Store Connect rate limit (429): nothing was created; try again in a minute",
+          );
+        }
         throw new StorelingoError(
           "E_STORE",
           `App Store Connect create request status is unknown (${err.message})`,
@@ -186,11 +194,21 @@ export function createAscApi(opts: {
     const query = new URLSearchParams({ ...params, limit: "200" });
     let url: string | undefined = `${ASC_API_BASE}${path}?${query.toString()}`;
     const out: AscResource<A>[] = [];
-    while (url) {
-      const page: AscListBody<A> = await request<AscListBody<A>>("GET", url, undefined, { missingAppId });
+    const seen = new Set<string>();
+    for (let pages = 0; url; pages++) {
+      if (pages >= MAX_PAGES || seen.has(url)) {
+        throw new StorelingoError("E_STORE", "App Store Connect pagination did not finish");
+      }
+      seen.add(url);
+      const page: AscListBody<A> = await request<AscListBody<A>>("GET", url, undefined, {
+        missingAppId: pages === 0 ? missingAppId : undefined,
+      });
       for (const r of page.data ?? []) out.push({ id: r.id, attributes: r.attributes });
       const next: string | undefined = page.links?.next;
-      url = typeof next === "string" && next.startsWith(`${ASC_API_BASE}/`) ? next : undefined;
+      if (typeof next === "string" && !next.startsWith(`${ASC_API_BASE}/`)) {
+        throw new StorelingoError("E_STORE", "App Store Connect returned a pagination link to another host");
+      }
+      url = typeof next === "string" ? next : undefined;
     }
     return out;
   }
