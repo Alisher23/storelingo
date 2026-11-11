@@ -239,7 +239,7 @@ Lock-файл коммитится в git, чтобы CI и соавторы р�
 - **HTTP:** таймаут на запрос, ретраи 429/5xx, `redirect: "error"`; токен и ключ никогда не попадают в ошибки и логи.
 - **pull (Play):** пишет все языки, которые вернул Play, в папки по коду Play (в т.ч. языки вне таблицы storelingo — с предупреждением, что их нельзя сделать целевыми). Пустые поля не пишутся. Существующий файл с другим содержимым не перезаписывается без `--force` (сообщается как «пропущено: отличается»). Lock-файл не трогает: скачанные переводы без записи в lock считаются ручными правками и защищены от `translate`.
 - **push (Play):** локали = исходная + целевые, которые поддерживает Play и для которых есть локальные файлы. Для каждой: значения из файлов поверх текущих значений в Play (поля без локального файла не трогаются). Новая локаль в Play требует локальных title, short_description и full_description, иначе ошибка `E_MISSING` для этой локали. Сравнение без хвостовых переводов строк. Удалённые локали, которых нет локально, не удаляются.
-- **`--store`:** в v0.2 поддерживается только `play`; `appstore` → `E_USAGE` («появится в v0.3»). Без `--store` push/pull работают с Play и сообщают, что App Store пока не поддерживается.
+- **`--store`:** в v0.2 поддерживался только `play`. С v0.3 — `play` или `appstore` (магазин должен быть настроен, иначе `E_CONFIG`); без `--store` — все настроенные магазины по очереди (см. §7.2).
 
 ### 7.2 App Store Connect API
 
@@ -250,6 +250,21 @@ Lock-файл коммитится в git, чтобы CI и соавторы р�
   - `promotional_text` заливается в текущую версию при любом состоянии, где Apple это разрешает.
 - **Новая локаль** → POST локализации. Существующая → PATCH.
 - Атомарности нет: diff считается заранее, применяется по одному ресурсу, отчёт о частичном успехе. Повторный запуск идемпотентен.
+- **API (проверено по документации Apple, 2026-11):** база `https://api.appstoreconnect.apple.com`.
+  - JWT: заголовок `alg: ES256`, `kid` = Key ID, `typ: JWT`; payload `iss` = Issuer ID, `iat`, `exp`, `aud: "appstoreconnect-v1"`; `exp - iat` ≤ 20 минут (storelingo берёт 15 и перевыпускает за минуту до истечения). Ключ `.p8` (PKCS8, EC P-256). Поддерживаются только командные ключи (с Issuer ID).
+  - `GET /v1/apps/{id}/appInfos` → `AppInfo.attributes.state` ∈ ACCEPTED, DEVELOPER_REJECTED, IN_REVIEW, PENDING_RELEASE, PREPARE_FOR_SUBMISSION, READY_FOR_DISTRIBUTION, READY_FOR_REVIEW, REJECTED, REPLACED_WITH_NEW_INFO, WAITING_FOR_REVIEW.
+  - `GET /v1/appInfos/{id}/appInfoLocalizations` → атрибуты `locale, name, subtitle, privacyPolicyUrl, privacyChoicesUrl, privacyPolicyText`; `POST /v1/appInfoLocalizations` (`data.type: "appInfoLocalizations"`, `attributes.locale` обязателен, `relationships.appInfo.data: { type: "appInfos", id }`), `PATCH /v1/appInfoLocalizations/{id}` (`data: { type, id, attributes }`).
+  - `GET /v1/apps/{id}/appStoreVersions?filter[platform]=IOS|MAC_OS|TV_OS|VISION_OS&filter[appVersionState]=…` → `AppStoreVersion.attributes.appVersionState` ∈ ACCEPTED, DEVELOPER_REJECTED, IN_REVIEW, INVALID_BINARY, METADATA_REJECTED, PENDING_APPLE_RELEASE, PENDING_DEVELOPER_RELEASE, PREPARE_FOR_SUBMISSION, PROCESSING_FOR_DISTRIBUTION, READY_FOR_DISTRIBUTION, READY_FOR_REVIEW, REJECTED, REPLACED_WITH_NEW_VERSION, WAITING_FOR_EXPORT_COMPLIANCE, WAITING_FOR_REVIEW.
+  - `GET /v1/appStoreVersions/{id}/appStoreVersionLocalizations` → `locale, description, keywords, marketingUrl, promotionalText, supportUrl, whatsNew`; `POST /v1/appStoreVersionLocalizations` (relationship `appStoreVersion`), `PATCH /v1/appStoreVersionLocalizations/{id}`.
+  - Ошибки: `{ errors: [{ status, code, title, detail }] }`; 401 — неверный токен, 403 — нет прав, 404, 409 (конфликт состояния), 422, 429.
+- **Выбор ресурсов:**
+  - Редактируемая версия — версия платформы `stores.appstore.platform` (по умолчанию `IOS`) в состоянии PREPARE_FOR_SUBMISSION, DEVELOPER_REJECTED, REJECTED или METADATA_REJECTED. Живая — READY_FOR_DISTRIBUTION.
+  - Редактируемый appInfo — в состоянии PREPARE_FOR_SUBMISSION, DEVELOPER_REJECTED или REJECTED. Живой — READY_FOR_DISTRIBUTION.
+  - `pull` читает из редактируемых ресурсов, если они есть, иначе из живых.
+  - `push`: name / subtitle / privacy_url — только в редактируемый appInfo; description / keywords / release_notes / marketing_url / support_url — только в редактируемую версию; promotional_text — в редактируемую версию, иначе в живую. Изменения полей без доступного ресурса показываются в diff как «пропущено: нет редактируемой версии» и не заливаются (`E_NO_EDITABLE_VERSION` только если не осталось ни одного изменения, которое можно залить).
+  - Новая локаль: POST в appInfo и/или версию; требует `name, description, keywords` локально и обоих редактируемых ресурсов.
+- **pull/push без `--store`** (с v0.3): обрабатываются все настроенные магазины по очереди (play, затем appstore), у каждого свой diff и своё подтверждение.
+- **Секреты:** `STORELINGO_ASC_ISSUER_ID`, `STORELINGO_ASC_KEY_ID`, `STORELINGO_ASC_PRIVATE_KEY` (путь к `.p8` или его содержимое). Ключ и токен не попадают в логи и ошибки; `STORELINGO_ASC_PRIVATE_KEY` добавлен в маскирование.
 
 ### 7.3 Инварианты безопасности
 
