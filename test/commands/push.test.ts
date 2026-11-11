@@ -200,7 +200,7 @@ describe("runPush with App Store-like stores", () => {
     const { client, state } = fakeStore(asRemote, { store: "appstore", writable: (f) => f === "promotional_text" });
     const confirm = vi.fn(async () => true);
     const report = await runPush({ config: cfg, cwd, client, log: capture().log, confirm });
-    const line = "en-US/description: skipped (no editable version in App Store Connect)";
+    const line = "en-US/description: skipped (the store can't take this field)";
     expect(report.status).toBe("pushed");
     expect(report.skipped).toEqual([line]);
     expect(state.updates).toEqual([
@@ -241,8 +241,70 @@ describe("runPush with App Store-like stores", () => {
     const { client } = fakeStore(asRemote, { store: "appstore", atomic: false, failOnLocale: "ru" });
     const err = await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes }).catch((e: unknown) => e);
     expect(err).toMatchObject({ code: "E_STORE", hint: expect.stringContaining("storelingo push") });
-    expect((err as Error).message).toContain("already applied: en-US");
-    expect((err as Error).message).toContain("not applied: ru");
+    expect((err as Error).message).toContain(
+      "already applied: en-US; failed (may be partly applied): ru; not attempted: none",
+    );
+  });
+
+  it("reports partial progress when the very first locale fails", async () => {
+    const { cwd, config: cfg } = await makeProject(twoLocales, asConfig);
+    const { client } = fakeStore(asRemote, { store: "appstore", atomic: false, failOnLocale: "en-US" });
+    const err = await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: "E_STORE", hint: expect.stringContaining("storelingo push") });
+    expect((err as Error).message).toContain(
+      "already applied: none; failed (may be partly applied): en-US; not attempted: ru",
+    );
+  });
+
+  it("sends a non-atomic store only the changed fields", async () => {
+    const { cwd, config: cfg } = await makeProject(asSource, asConfig);
+    const { client, state } = fakeStore(asRemote, { store: "appstore", atomic: false });
+    await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes });
+    const fields = state.updates[0]!.fields;
+    expect(fields).toEqual({ description: "New description", promotional_text: "New promo" });
+  });
+
+  it("does not send unchanged remote fields to a non-atomic store", async () => {
+    const remoteWithMore = [{ locale: "en-US", fields: { name: "N", description: "Old", keywords: "k", subtitle: "Keep me" } }];
+    const { cwd, config: cfg } = await makeProject({ [`${A}/en-US/name.txt`]: "N", [`${A}/en-US/description.txt`]: "New", [`${A}/en-US/keywords.txt`]: "k" }, asConfig);
+    const { client, state } = fakeStore(remoteWithMore, { store: "appstore", atomic: false });
+    await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes });
+    expect(state.updates).toEqual([{ locale: "en-US", fields: { description: "New" } }]);
+  });
+
+  it("still sends the full merged listing to an atomic store", async () => {
+    const { cwd, config: cfg } = await makeProject(source, config);
+    const { client, state } = fakeStore(remote);
+    await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes });
+    expect(state.updates[0]!.fields).toMatchObject({ title: "New title", video: "v" });
+  });
+
+  it("uses the store's skip reason per field", async () => {
+    const { cwd, config: cfg } = await makeProject(asSource, asConfig);
+    const { client } = fakeStore(asRemote, {
+      store: "appstore",
+      writable: (f) => f === "promotional_text",
+      skipReason: (f) => `reason for ${f}`,
+    });
+    const report = await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes });
+    expect(report.skipped).toEqual(["en-US/description: skipped (reason for description)"]);
+  });
+
+  it("falls back to a generic reason without skipReason", async () => {
+    const { cwd, config: cfg } = await makeProject(asSource, asConfig);
+    const { client } = fakeStore(asRemote, { store: "appstore", writable: (f) => f === "promotional_text" });
+    const report = await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes });
+    expect(report.skipped).toContain("en-US/description: skipped (the store can't take this field)");
+  });
+
+  it("logs skipped lines before E_NO_EDITABLE_VERSION, also on --dry-run", async () => {
+    const { cwd, config: cfg } = await makeProject(asSource, asConfig);
+    const { client } = fakeStore(asRemote, { store: "appstore", writable: () => false });
+    const { log, out } = capture();
+    await expect(runPush({ config: cfg, cwd, client, log, dryRun: true, confirm: yes })).rejects.toMatchObject({
+      code: "E_NO_EDITABLE_VERSION",
+    });
+    expect(out).toContain("en-US/description: skipped (the store can't take this field)");
   });
 
   it("leaves the error unchanged for an atomic store", async () => {

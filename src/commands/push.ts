@@ -6,7 +6,7 @@ import type { Logger } from "../log.js";
 import { resolveFieldPath, storeRoot } from "../metadata/fastlane.js";
 import { computeDiff, formatDiff, type ListingDiff } from "../stores/diff.js";
 import { readLocalListings } from "../stores/local.js";
-import type { StoreClient, StoreSession } from "../stores/types.js";
+import type { StoreClient, StoreListing, StoreSession } from "../stores/types.js";
 import { STORE_NAMES, runCheck } from "./check.js";
 
 export const REQUIRED_FOR_NEW: Record<StoreId, readonly string[]> = {
@@ -63,6 +63,7 @@ export async function runPush(opts: {
       return { status: "blocked", locales: [], problems, skipped: [] };
     }
     if (diffs.length === 0 && skipped.length > 0) {
+      for (const line of skipped) log.info(line);
       await session.abort();
       throw new StorelingoError(
         "E_NO_EDITABLE_VERSION",
@@ -91,15 +92,17 @@ export async function runPush(opts: {
     const applied: string[] = [];
     for (const diff of diffs) {
       try {
-        await session.update(diff.merged);
+        await session.update(updatePayload(diff, session));
         applied.push(diff.locale);
       } catch (err) {
-        if (session.atomic === false && applied.length > 0) {
-          const rest = locales.filter((l) => !applied.includes(l));
+        if (session.atomic === false) {
+          const failedAt = locales.indexOf(diff.locale);
+          const list = (items: string[]) => (items.length > 0 ? items.join(", ") : "none");
           const message = err instanceof Error ? err.message : String(err);
           throw new StorelingoError(
             err instanceof StorelingoError ? err.code : "E_STORE",
-            `${message} — already applied: ${applied.join(", ")}; not applied: ${rest.join(", ")}`,
+            `${message} — already applied: ${list(applied)}; failed (may be partly applied): ${diff.locale}; ` +
+              `not attempted: ${list(locales.slice(failedAt + 1))}`,
             "Re-run `storelingo push`: it only sends what still differs.",
           );
         }
@@ -114,6 +117,14 @@ export async function runPush(opts: {
   }
 }
 
+const GENERIC_SKIP_REASON = "the store can't take this field";
+
+/** Atomic stores (full-replacement updates) get the whole merged listing; others only the changed fields. */
+function updatePayload(diff: ListingDiff, session: StoreSession): StoreListing {
+  if (session.atomic !== false) return diff.merged;
+  return { locale: diff.locale, fields: Object.fromEntries(diff.changes.map((c) => [c.field, c.to])) };
+}
+
 /** Moves changes the session cannot write into `skipped`; a new listing missing a writable required field becomes a problem. */
 function applyWritability(
   diffs: ListingDiff[],
@@ -122,7 +133,6 @@ function applyWritability(
   problems: string[],
 ): { diffs: ListingDiff[]; skipped: string[] } {
   const writable = (field: string) => session.isWritable?.(field) !== false;
-  const reason = store === "appstore" ? "no editable version in App Store Connect" : "the store can't take this field";
   const kept: ListingDiff[] = [];
   const skipped: string[] = [];
   for (const diff of diffs) {
@@ -133,7 +143,7 @@ function applyWritability(
     const fields = { ...diff.merged.fields };
     const changes = diff.changes.filter((c) => {
       if (writable(c.field)) return true;
-      skipped.push(`${diff.locale}/${c.field}: skipped (${reason})`);
+      skipped.push(`${diff.locale}/${c.field}: skipped (${session.skipReason?.(c.field) ?? GENERIC_SKIP_REASON})`);
       if (c.from === undefined) delete fields[c.field];
       else fields[c.field] = c.from;
       return false;

@@ -305,6 +305,27 @@ describe("pull/push", () => {
       expect(s.out.join("\n")).toContain("Updated 1 App Store localization(s): en-US.");
     });
 
+    it("builds every store client before touching any store", async () => {
+      const s = await setup(bothFiles);
+      s.makeStore.mockImplementation(async (store: string) => {
+        if (store === "appstore") throw new StorelingoError("E_CONFIG", "STORELINGO_ASC_ISSUER_ID not set");
+        return s.play.client;
+      });
+      expect(await run(s.d, "push", "--yes")).toBe(2);
+      expect(s.play.state.opened).toBe(0);
+      expect(s.err.join(String.fromCharCode(10))).toContain("STORELINGO_ASC_ISSUER_ID not set");
+    });
+
+    it("builds every store client before pulling from any store", async () => {
+      const s = await setup(bothFiles);
+      s.makeStore.mockImplementation(async (store: string) => {
+        if (store === "appstore") throw new StorelingoError("E_CONFIG", "no key");
+        return s.play.client;
+      });
+      expect(await run(s.d, "pull")).toBe(2);
+      expect(s.play.state.opened).toBe(0);
+    });
+
     it("exits 1 when the App Store push is blocked even if Play succeeded", async () => {
       const s = await setup({ ...bothFiles, "fastlane/metadata/en-US/name.txt": "x".repeat(31) });
       expect(await run(s.d, "push", "--yes")).toBe(1);

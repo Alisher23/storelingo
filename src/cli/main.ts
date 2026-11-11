@@ -120,6 +120,13 @@ export async function main(argv: string[], deps: CliDeps = defaultDeps()): Promi
       writeErr: (s) => deps.err(s.trimEnd()),
     });
 
+  /** Loads credentials for every selected store (no network) so a missing key fails before any store is touched. */
+  const buildClients = async (stores: StoreId[], config: Config): Promise<[StoreId, StoreClient][]> => {
+    const clients: [StoreId, StoreClient][] = [];
+    for (const store of stores) clients.push([store, await (deps.makeStore ?? defaultMakeStore)(store, config, deps.env)]);
+    return clients;
+  };
+
   program
     .command("init")
     .description("create storelingo.config.json and fastlane folders")
@@ -190,8 +197,8 @@ export async function main(argv: string[], deps: CliDeps = defaultDeps()): Promi
       const log = logger();
       const config = await loadConfig(configPath());
       const stores = selectStores(opts.store, config);
-      for (const store of stores) {
-        const client = await (deps.makeStore ?? defaultMakeStore)(store, config, deps.env);
+      const clients = await buildClients(stores, config);
+      for (const [store, client] of clients) {
         const report = await runPull({ config, cwd: deps.cwd, client, log, force: opts.force });
         log.info(
           `Pulled from ${STORE_NAMES[store]}: wrote ${report.written}, unchanged ${report.unchanged}, ` +
@@ -227,9 +234,9 @@ export async function main(argv: string[], deps: CliDeps = defaultDeps()): Promi
         if (isTTY) return async () => promptConfirm({ message, default: false });
         return async () => false; // --dry-run outside a terminal
       };
-      for (const store of stores) {
+      const clients = await buildClients(stores, config);
+      for (const [store, client] of clients) {
         const name = STORE_NAMES[store];
-        const client = await (deps.makeStore ?? defaultMakeStore)(store, config, deps.env);
         const report = await runPush({
           config,
           cwd: deps.cwd,

@@ -113,7 +113,14 @@ export async function promptInitAnswers(): Promise<InitAnswers> {
     ? await input({ message: "Google Play package name (e.g. com.example.app)", required: true })
     : undefined;
   const appstoreAppId = stores.includes("appstore")
-    ? await input({ message: "App Store app ID (numbers from App Store Connect)", required: true })
+    ? (
+        await input({
+          message: "App Store app ID (numbers from App Store Connect)",
+          required: true,
+          validate: (v) =>
+            /^[0-9]+$/.test(v.trim()) || "Enter the numeric Apple ID from App Store Connect (App Information)",
+        })
+      ).trim()
     : undefined;
   const provider = await select({
     message: "Translator",

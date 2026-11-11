@@ -18,6 +18,7 @@ export function fakeStore(
     store?: StoreId;
     atomic?: boolean;
     writable?: (field: string) => boolean;
+    skipReason?: (field: string) => string | undefined;
     notes?: string[];
     failOnLocale?: string;
   } = {},
@@ -32,6 +33,7 @@ export function fakeStore(
       return {
         ...(opts.atomic !== undefined ? { atomic: opts.atomic } : {}),
         ...(opts.writable ? { isWritable: opts.writable } : {}),
+        ...(opts.skipReason ? { skipReason: opts.skipReason } : {}),
         ...(opts.notes ? { notes: opts.notes } : {}),
         async listings() {
           return structuredClone(state.remote);
