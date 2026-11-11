@@ -10,3 +10,7 @@ Not blocking the v0.3 merge; one line each.
 - T6: App Store Connect UI labels and whether the App Manager role is sufficient are unverified against Apple documentation.
 - Verify against a real app: `whatsNew` on a first version (I3), the list of editable states, promotional text on the live version.
 - Extra (from this fix wave): with versions present but none editable or live (for example only "in review"), the store note says "No editable or live App Store version"; the wording is untested against a real account.
+
+## Noted at the final re-review
+- M2 side effect: a locale present in app info localizations but missing on the live version, with only promotional_text changed and no editable version, shows as a pushable change; update() sends nothing yet push reports it as pushed. Filter such changes as skipped.
+- Spec §7.2: the four bullets added in the v0.3 fix wave are nested under the wrong parent bullet (cosmetic).
