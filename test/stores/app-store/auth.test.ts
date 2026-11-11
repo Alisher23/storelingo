@@ -33,7 +33,8 @@ describe("loadAscKey", () => {
   });
 
   it("accepts literal \n sequences (CI secrets)", async () => {
-    const escaped = privateKey.trim().split("\n").join("\n");
+    const escaped = privateKey.trim().split("\n").join(String.fromCharCode(92) + "n"); // backslash + n
+    expect(escaped.includes("\n")).toBe(false);
     expect((await loadAscKey(env(escaped))).privateKey.trim()).toBe(privateKey.trim());
   });
 
@@ -45,8 +46,11 @@ describe("loadAscKey", () => {
   });
 
   it("explains an unreadable file without echoing secrets", async () => {
-    const err = await loadAscKey(env(join(await makeTmpDir(), "missing.p8"))).catch((e) => e);
+    const missing = join(await makeTmpDir(), "missing.p8");
+    const err = await loadAscKey(env(missing)).catch((e) => e);
     expect(err.code).toBe("E_CONFIG");
+    expect(err.message).not.toContain(missing);
+    expect(err.hint ?? "").not.toContain(missing);
   });
 });
 

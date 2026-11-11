@@ -5,6 +5,7 @@ import { StorelingoError } from "../../errors.js";
 export const ASC_AUDIENCE = "appstoreconnect-v1";
 const TOKEN_LIFETIME_S = 15 * 60; // Apple allows at most 20 minutes
 const REFRESH_MARGIN_MS = 60_000;
+const ESCAPED_NEWLINE = String.fromCharCode(92) + "n"; // the two characters backslash + n
 const SETUP_URL = "https://github.com/Alisher23/storelingo/blob/main/docs/app-store-setup.md";
 
 export interface AscKey {
@@ -44,7 +45,7 @@ export async function loadAscKey(env: NodeJS.ProcessEnv): Promise<AscKey> {
     }
   }
   pem = pem.replace(/^\uFEFF/, "");
-  if (!pem.includes("\n") && pem.includes("\n")) pem = pem.split("\n").join("\n");
+  if (!pem.includes("\n") && pem.includes(ESCAPED_NEWLINE)) pem = pem.split(ESCAPED_NEWLINE).join("\n");
   if (!pem.includes("BEGIN PRIVATE KEY")) {
     throw new StorelingoError("E_CONFIG", "STORELINGO_ASC_PRIVATE_KEY does not contain a .p8 private key");
   }
