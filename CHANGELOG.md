@@ -4,6 +4,8 @@
 
 - `pull`: download the current Google Play listings into the fastlane folders. Never commits and never touches the lock file; keeps different local files unless `--force`.
 - `push`: runs `check`, shows the diff with the live Google Play listing and uploads after confirmation (`--dry-run`, `--yes`; outside a terminal it needs one of them). One Play edit per push, committed with `ERROR_IF_IN_REVIEW` so changes already in review are never cancelled.
+- `push` counts as interactive only when both input and output are a terminal: with output redirected or piped (e.g. `storelingo push > log.txt`, `storelingo push | tee log.txt`) it needs `--yes` or `--dry-run`.
+- The `push` diff shows the part of a long value where it actually changes, with character counts.
 - Google Play service account authentication via `STORELINGO_PLAY_SERVICE_ACCOUNT`; setup guide in `docs/google-play-setup.md`.
 - New error codes `E_IN_REVIEW` and `E_STORE`.
 - Hardening: the OpenAI-compatible translator no longer follows redirects.

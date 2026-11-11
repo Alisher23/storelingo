@@ -17,4 +17,4 @@
 ## Noted at the final re-review
 - Diff window is cut by code point, so it can split grapheme clusters (ZWJ emoji, combining marks); display only.
 - Inline STORELINGO_PLAY_SERVICE_ACCOUNT JSON is masked only as a whole string; a fragment quoted in an error would not be masked (no error quotes the key today).
-- push now treats a non-TTY stdout as non-interactive (e.g. `storelingo push | tee` needs --yes); add a CHANGELOG line.
+- (done) push non-TTY stdout rule documented in CHANGELOG.
