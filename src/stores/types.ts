@@ -15,6 +15,12 @@ export interface StoreSession {
   commit(): Promise<void>;
   /** Discards the session. Never throws; a no-op after commit() or a previous abort(). */
   abort(): Promise<void>;
+  /** False when updates apply immediately and one by one (no commit/rollback). Default: true. */
+  readonly atomic?: boolean;
+  /** Whether this session can write the field; undefined means every field is writable. */
+  isWritable?(field: string): boolean;
+  /** Human-readable facts about this session to show before the diff (e.g. "no editable version"). */
+  readonly notes?: readonly string[];
 }
 
 export interface StoreClient {
