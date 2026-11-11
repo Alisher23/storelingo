@@ -44,7 +44,7 @@ describe("runPush", () => {
     const { client, state } = fakeStore(remote);
     const { log, out } = capture();
     const report = await runPush({ config: cfg, cwd, client, log, confirm: yes });
-    expect(report).toEqual({ status: "nothing", locales: [], problems: [] });
+    expect(report).toEqual({ status: "nothing", locales: [], problems: [], skipped: [] });
     expect(out.join("\n")).toContain("Nothing to push");
     expect(state).toMatchObject({ aborted: 1, committed: 0 });
   });
@@ -55,7 +55,7 @@ describe("runPush", () => {
     const { log, out } = capture();
     const confirm = vi.fn(async () => true);
     const report = await runPush({ config: cfg, cwd, client, log, dryRun: true, confirm });
-    expect(report).toEqual({ status: "dry-run", locales: ["en-US"], problems: [] });
+    expect(report).toEqual({ status: "dry-run", locales: ["en-US"], problems: [], skipped: [] });
     expect(out).toContain('  title: "Old title" → "New title"');
     expect(confirm).not.toHaveBeenCalled();
     expect(state).toMatchObject({ updates: [], aborted: 1, committed: 0 });
@@ -83,7 +83,7 @@ describe("runPush", () => {
     const confirm = vi.fn(async () => true);
     const report = await runPush({ config: cfg, cwd, client, log: capture().log, confirm });
 
-    expect(report).toEqual({ status: "pushed", locales: ["en-US", "ru-RU"], problems: [] });
+    expect(report).toEqual({ status: "pushed", locales: ["en-US", "ru-RU"], problems: [], skipped: [] });
     expect(confirm).toHaveBeenCalledWith(expect.arrayContaining(["en-US:", "ru-RU (new listing):"]));
     expect(state.updates).toEqual([
       { locale: "en-US", fields: { title: "New title", short_description: "S", full_description: "F", video: "v" } },
@@ -173,5 +173,82 @@ describe("runPush", () => {
     };
     const report = await runPush({ config: cfg, cwd, client: createPlayStore(api), log: capture().log, confirm: yes });
     expect(report.status).toBe("nothing");
+  });
+});
+
+describe("runPush with App Store-like stores", () => {
+  const A = "fastlane/metadata";
+  const asConfig = { ...config, stores: { appstore: { appId: "1" } } };
+  const asRemote = [
+    { locale: "en-US", fields: { name: "N", description: "Old", keywords: "k", promotional_text: "Old promo" } },
+  ];
+  const asSource = {
+    [`${A}/en-US/name.txt`]: "N",
+    [`${A}/en-US/description.txt`]: "New description",
+    [`${A}/en-US/keywords.txt`]: "k",
+    [`${A}/en-US/promotional_text.txt`]: "New promo",
+  };
+  const twoLocales = {
+    ...asSource,
+    [`${A}/ru/name.txt`]: "Имя",
+    [`${A}/ru/description.txt`]: "Описание",
+    [`${A}/ru/keywords.txt`]: "к",
+  };
+
+  it("sends only writable fields and lists the rest as skipped", async () => {
+    const { cwd, config: cfg } = await makeProject(asSource, asConfig);
+    const { client, state } = fakeStore(asRemote, { store: "appstore", writable: (f) => f === "promotional_text" });
+    const confirm = vi.fn(async () => true);
+    const report = await runPush({ config: cfg, cwd, client, log: capture().log, confirm });
+    const line = "en-US/description: skipped (no editable version in App Store Connect)";
+    expect(report.status).toBe("pushed");
+    expect(report.skipped).toEqual([line]);
+    expect(state.updates).toEqual([
+      { locale: "en-US", fields: { name: "N", description: "Old", keywords: "k", promotional_text: "New promo" } },
+    ]);
+    expect(confirm).toHaveBeenCalledWith(expect.arrayContaining([line]));
+  });
+
+  it("throws E_NO_EDITABLE_VERSION when nothing writable changed", async () => {
+    const { cwd, config: cfg } = await makeProject(asSource, asConfig);
+    const { client, state } = fakeStore(asRemote, { store: "appstore", writable: () => false });
+    await expect(runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes })).rejects.toMatchObject({
+      code: "E_NO_EDITABLE_VERSION",
+    });
+    expect(state).toMatchObject({ updates: [], aborted: 1, committed: 0 });
+  });
+
+  it("blocks a new locale whose required field cannot be written", async () => {
+    const { cwd, config: cfg } = await makeProject(twoLocales, asConfig);
+    const { client, state } = fakeStore(asRemote, { store: "appstore", writable: (f) => f === "promotional_text" });
+    const report = await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes });
+    expect(report.status).toBe("blocked");
+    expect(report.problems).toEqual(["ru: a new listing needs an editable app info and version in App Store Connect"]);
+    expect(state).toMatchObject({ updates: [], aborted: 1 });
+  });
+
+  it("logs session notes before the diff", async () => {
+    const { cwd, config: cfg } = await makeProject(asSource, asConfig);
+    const { client } = fakeStore(asRemote, { store: "appstore", notes: ["Editing version 1.2"] });
+    const { log, out } = capture();
+    await runPush({ config: cfg, cwd, client, log, dryRun: true, confirm: yes });
+    expect(out[0]).toBe("Editing version 1.2");
+    expect(out.indexOf("en-US:")).toBeGreaterThan(0);
+  });
+
+  it("reports partial progress for a non-atomic store", async () => {
+    const { cwd, config: cfg } = await makeProject(twoLocales, asConfig);
+    const { client } = fakeStore(asRemote, { store: "appstore", atomic: false, failOnLocale: "ru" });
+    const err = await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: "E_STORE", hint: expect.stringContaining("storelingo push") });
+    expect((err as Error).message).toContain("already applied: en-US");
+    expect((err as Error).message).toContain("not applied: ru");
+  });
+
+  it("leaves the error unchanged for an atomic store", async () => {
+    const { cwd, config: cfg } = await makeProject(twoLocales, asConfig);
+    const { client } = fakeStore(asRemote, { store: "appstore", failOnLocale: "ru" });
+    const err = await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: "E_STORE", message: "API error 400: boom for ru" });
   });
 });
