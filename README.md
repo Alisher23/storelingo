@@ -240,7 +240,7 @@ How it behaves:
 
 ## GitHub Action
 
-Run storelingo in CI with `uses: Alisher23/storelingo@v0.4.0` (pin a release tag or a commit SHA). It can translate on push and commit the result, or only run the offline `check` on pull requests with no secrets. See the [GitHub Action guide](https://github.com/Alisher23/storelingo/blob/main/docs/github-action.md) for workflows, inputs and security notes.
+Run storelingo in CI with `uses: Alisher23/storelingo@v0.4.1` (pin a release tag or a commit SHA). It can translate on push and commit the result, or only run the offline `check` on pull requests with no secrets. See the [GitHub Action guide](https://github.com/Alisher23/storelingo/blob/main/docs/github-action.md) for workflows, inputs and security notes.
 
 ## How translation works
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 — 2026-11-14
+
+- GitHub Action: the commit step treats config paths literally (`GIT_LITERAL_PATHSPECS`) and commits only storelingo output even if an earlier workflow step staged other files (reported by the Codex review on #11).
+
 ## 0.4.0 — 2026-11-14
 
 - GitHub Action (`uses: Alisher23/storelingo@v0.4.0`): runs `translate` and/or `check` in CI. Optional `commit` of the translated files: only storelingo output is committed, only on `push`, `workflow_dispatch` or `schedule` runs on a branch, and never after a failed or cancelled step. Setup guide in `docs/github-action.md`.
