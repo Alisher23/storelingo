@@ -45,3 +45,24 @@ jobs:
       - name: Mock server log
         if: failure()
         run: cat mock.log
+  refuse-commit-on-pr:
+    # The action must refuse commit: "true" on pull_request, before building or translating.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the action with commit on a pull request
+        id: refused
+        continue-on-error: true
+        uses: ./
+        with:
+          command: check
+          working-directory: test/fixtures/action-project
+          commit: "true"
+      - name: Assert the refusal
+        env:
+          OUTCOME: ${{ steps.refused.outcome }}
+          CONCLUSION: ${{ steps.refused.conclusion }}
+        run: |
+          echo "outcome=$OUTCOME conclusion=$CONCLUSION"
+          test "$OUTCOME" = "failure"

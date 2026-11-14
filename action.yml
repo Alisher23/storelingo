@@ -39,7 +39,7 @@ inputs:
 outputs:
   changed:
     description: '"true" when the commit step committed changed files, otherwise "false"'
-    value: ${{ steps.commit.outputs.changed }}
+    value: ${{ steps.commit.outputs.changed || 'false' }}
 
 runs:
   using: composite
@@ -52,6 +52,9 @@ runs:
       shell: bash
       env:
         STORELINGO_COMMAND: ${{ inputs.command }}
+        STORELINGO_COMMIT: ${{ inputs.commit }}
+        EVENT_NAME: ${{ github.event_name }}
+        REF_TYPE: ${{ github.ref_type }}
       run: |
         case "$STORELINGO_COMMAND" in
           translate|check|translate-and-check) ;;
@@ -60,8 +63,23 @@ runs:
             exit 1
             ;;
         esac
+        # Refuse before any credits are spent or secrets are loaded.
+        if [ "$STORELINGO_COMMIT" = "true" ]; then
+          case "$EVENT_NAME" in
+            push|workflow_dispatch|schedule) ;;
+            *)
+              echo "::error::commit: true is allowed only on push, workflow_dispatch or schedule events on a branch. For pull requests use command: check."
+              exit 1
+              ;;
+          esac
+          if [ "$REF_TYPE" != "branch" ]; then
+            echo "::error::commit: true is allowed only on push, workflow_dispatch or schedule events on a branch. For pull requests use command: check."
+            exit 1
+          fi
+        fi
 
     - name: Build storelingo
+      id: build
       shell: bash
       working-directory: ${{ github.action_path }}
       run: npm ci --no-audit --no-fund && npm run build
@@ -94,15 +112,15 @@ runs:
 
     - name: Commit
       id: commit
-      if: always()
+      if: ${{ !cancelled() }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
+        STORELINGO_COMMAND: ${{ inputs.command }}
         STORELINGO_COMMIT: ${{ inputs.commit }}
         STORELINGO_COMMIT_MESSAGE: ${{ inputs.commit-message }}
         BRANCH: ${{ github.head_ref || github.ref_name }}
-        EVENT_NAME: ${{ github.event_name }}
-        REF_TYPE: ${{ github.ref_type }}
+        BUILD_OUTCOME: ${{ steps.build.outcome }}
         TRANSLATE_OUTCOME: ${{ steps.translate.outcome }}
         CHECK_OUTCOME: ${{ steps.check.outcome }}
       run: |
@@ -110,20 +128,26 @@ runs:
           echo "changed=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        if [ "$EVENT_NAME" = "pull_request" ] || [ "$EVENT_NAME" = "pull_request_target" ] || [ "$REF_TYPE" = "tag" ]; then
+        # Commit only when every step the command runs has succeeded.
+        ok=1
+        [ "$BUILD_OUTCOME" = "success" ] || ok=0
+        case "$STORELINGO_COMMAND" in
+          translate|translate-and-check) [ "$TRANSLATE_OUTCOME" = "success" ] || ok=0 ;;
+        esac
+        case "$STORELINGO_COMMAND" in
+          check|translate-and-check) [ "$CHECK_OUTCOME" = "success" ] || ok=0 ;;
+        esac
+        if [ "$ok" -ne 1 ]; then
           echo "changed=false" >> "$GITHUB_OUTPUT"
-          echo "::error::commit: true is allowed only on push to a branch. For pull requests use command: check."
-          exit 1
-        fi
-        if [ "$TRANSLATE_OUTCOME" = "failure" ] || [ "$CHECK_OUTCOME" = "failure" ]; then
-          echo "changed=false" >> "$GITHUB_OUTPUT"
-          echo "Skipping commit because an earlier storelingo step failed."
+          echo "Skipping commit because an earlier step did not succeed."
           exit 0
         fi
         # Only storelingo output: the configured metadata folders and the lock file.
-        mapfile -t PATHS < <(node -e '
+        # A failure of node fails this step (no silent fallback).
+        PATHS_TEXT=$(node -e '
           const fs = require("node:fs");
-          const c = JSON.parse(fs.readFileSync("storelingo.config.json", "utf8"));
+          const raw = fs.readFileSync("storelingo.config.json", "utf8").replace(/^\uFEFF/, "");
+          const c = JSON.parse(raw);
           const s = c.stores ?? {};
           const p = c.paths ?? {};
           const out = [];
@@ -132,6 +156,11 @@ runs:
           out.push("storelingo.lock.json");
           console.log(out.join("\n"));
         ')
+        mapfile -t CANDIDATES <<< "$PATHS_TEXT"
+        PATHS=()
+        for p in "${CANDIDATES[@]}"; do
+          if [ -n "$p" ] && [ -e "$p" ]; then PATHS+=("$p"); fi
+        done
         if [ "${#PATHS[@]}" -eq 0 ]; then
           echo "changed=false" >> "$GITHUB_OUTPUT"
           exit 0
@@ -140,9 +169,9 @@ runs:
           echo "changed=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        git config user.name "github-actions[bot]"
-        git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
         git add -A -- "${PATHS[@]}"
-        git commit -m "$STORELINGO_COMMIT_MESSAGE"
+        git -c user.name="github-actions[bot]" \
+            -c user.email="41898099+github-actions[bot]@users.noreply.github.com" \
+            commit -m "$STORELINGO_COMMIT_MESSAGE"
         git push origin "HEAD:$BRANCH"
         echo "changed=true" >> "$GITHUB_OUTPUT"
