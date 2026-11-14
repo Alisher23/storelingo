@@ -17,8 +17,8 @@ export function fakeStore(
     failOn?: "update" | "commit";
     store?: StoreId;
     atomic?: boolean;
-    writable?: (field: string) => boolean;
-    skipReason?: (field: string) => string | undefined;
+    writable?: (field: string, locale?: string) => boolean;
+    skipReason?: (field: string, locale?: string) => string | undefined;
     notes?: string[];
     failOnLocale?: string;
   } = {},

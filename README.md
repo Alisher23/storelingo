@@ -238,6 +238,10 @@ How it behaves:
 - storelingo never submits anything for review, never deletes languages and never touches prices, builds, screenshots or categories.
 - The key is read only from the `STORELINGO_ASC_*` variables and never appears in logs or error messages. Keep the `.p8` out of git (`init` adds `*.p8` to `.gitignore`).
 
+## GitHub Action
+
+Run storelingo in CI with `uses: Alisher23/storelingo@main` (pin a tag or commit SHA once a release exists). It can translate on push and commit the result, or only run the offline `check` on pull requests with no secrets. See the [GitHub Action guide](https://github.com/Alisher23/storelingo/blob/main/docs/github-action.md) for workflows, inputs and security notes.
+
 ## How translation works
 
 1. For every store and target locale, storelingo decides per field: skip if the source is empty or missing; translate if the target file is missing or empty (whitespace only); skip if you edited the translated file by hand; skip if the source has not changed since the last run; otherwise translate.
@@ -313,7 +317,7 @@ Generated from `src/locales/table.ts`. "—" means the store does not support th
 
 - v0.2 (done): Google Play `pull` / `push`
 - v0.3 (done): App Store `pull` / `push`
-- Next, v1.0: GitHub Action
+- v0.4 (done): GitHub Action
 - Later: screenshots, RuStore, Huawei AppGallery
 
 ## Contributing

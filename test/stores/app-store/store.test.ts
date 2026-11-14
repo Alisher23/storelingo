@@ -112,6 +112,68 @@ describe("createAppStoreStore", () => {
     expect(session.notes).toHaveLength(2);
   });
 
+  it("promotional text without an editable version needs the locale on the live version", async () => {
+    const setup = liveSetup();
+    setup.infoLocs!["i-live"]!.push({ id: "il-ru", attributes: { locale: "ru", name: "Имя" } });
+    const session = await createAppStoreStore(fakeApi(setup), opts).open();
+    expect(session.isWritable?.("promotional_text", "en-US")).toBe(true);
+    expect(session.isWritable?.("promotional_text", "ru")).toBe(false);
+    expect(session.isWritable?.("promotional_text")).toBe(true);
+    expect(session.skipReason?.("promotional_text", "ru")).toBe("this language doesn't exist on the live version yet");
+    expect(session.skipReason?.("promotional_text", "en-US")).toBeUndefined();
+  });
+
+  it("promotional text for a new locale stays writable when a version is editable", async () => {
+    const session = await createAppStoreStore(fakeApi(editableSetup()), opts).open();
+    expect(session.isWritable?.("promotional_text", "ru")).toBe(true);
+  });
+
+  describe("edge cases", () => {
+    it("no app info and no version: no listings, nothing writable, notes present", async () => {
+      const session = await createAppStoreStore(fakeApi({}), opts).open();
+      expect(await session.listings()).toEqual([]);
+      for (const f of ["name", "description", "promotional_text", "release_notes"]) {
+        expect(session.isWritable?.(f, "en-US")).toBe(false);
+      }
+      expect(session.notes).toContain("No App Store version yet: version texts can't be updated until a version exists.");
+      expect(session.notes?.some((n) => n.includes("No editable app info"))).toBe(true);
+    });
+
+    it("app info only: listings carry info fields, version fields are not writable", async () => {
+      const setup: Setup = {
+        infos: [info("i-ed", "PREPARE_FOR_SUBMISSION")],
+        infoLocs: { "i-ed": [{ id: "il-en", attributes: { locale: "en-US", name: "N", subtitle: "S" } }] },
+      };
+      const session = await createAppStoreStore(fakeApi(setup), opts).open();
+      expect(await session.listings()).toEqual([{ locale: "en-US", fields: { name: "N", subtitle: "S" } }]);
+      expect(session.isWritable?.("name", "en-US")).toBe(true);
+      expect(session.isWritable?.("description", "en-US")).toBe(false);
+      expect(session.isWritable?.("promotional_text", "en-US")).toBe(false);
+    });
+
+    it("version only: listings carry version fields, info fields are not writable", async () => {
+      const setup: Setup = {
+        versions: [version("v-ed", "PREPARE_FOR_SUBMISSION")],
+        versionLocs: { "v-ed": [{ id: "vl-en", attributes: { locale: "en-US", description: "D", keywords: "k" } }] },
+      };
+      const session = await createAppStoreStore(fakeApi(setup), opts).open();
+      expect(await session.listings()).toEqual([{ locale: "en-US", fields: { description: "D", keywords: "k" } }]);
+      expect(session.isWritable?.("description", "en-US")).toBe(true);
+      expect(session.isWritable?.("name", "en-US")).toBe(false);
+      expect(session.notes?.some((n) => n.includes("No editable app info"))).toBe(true);
+    });
+
+    it("drops whitespace-only remote values", async () => {
+      const setup = editableSetup();
+      setup.infoLocs!["i-ed"] = [{ id: "il-en", attributes: { locale: "en-US", name: "  ", subtitle: "Sub" } }];
+      setup.versionLocs!["v-ed"] = [
+        { id: "vl-en", attributes: { locale: "en-US", description: "\n\t ", keywords: "a" } },
+      ];
+      const session = await createAppStoreStore(fakeApi(setup), opts).open();
+      expect(await session.listings()).toEqual([{ locale: "en-US", fields: { subtitle: "Sub", keywords: "a" } }]);
+    });
+  });
+
   it("includes version-only locales after info locales", async () => {
     const setup = editableSetup();
     setup.versionLocs!["v-ed"]!.push({ id: "vl-de", attributes: { locale: "de-DE", description: "D" } });
@@ -150,6 +212,16 @@ describe("createAppStoreStore", () => {
     expect(api.updateAppInfoLocalization).not.toHaveBeenCalled();
     expect(api.createAppInfoLocalization).not.toHaveBeenCalled();
     expect(api.createVersionLocalization).not.toHaveBeenCalled();
+  });
+
+  it("live-only: promotional text for a language missing on the live version makes no API call", async () => {
+    const api = fakeApi(liveSetup());
+    const session = await createAppStoreStore(api, opts).open();
+    await session.update({ locale: "ru", fields: { promotional_text: "P" } });
+    expect(api.createAppInfoLocalization).not.toHaveBeenCalled();
+    expect(api.updateAppInfoLocalization).not.toHaveBeenCalled();
+    expect(api.createVersionLocalization).not.toHaveBeenCalled();
+    expect(api.updateVersionLocalization).not.toHaveBeenCalled();
   });
 
   it("does not POST a version localization when there is no editable version", async () => {

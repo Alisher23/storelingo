@@ -260,6 +260,14 @@ describe("pull/push", () => {
     expect(s.makeStore).not.toHaveBeenCalled();
   });
 
+  it("push --store foo is a usage error before any network call", async () => {
+    const { cwd } = await makeProject(files, config);
+    const s = storeDeps(cwd);
+    expect(await run(s.d, "push", "--store", "foo", "--yes")).toBe(2);
+    expect(s.err.join("\n")).toContain('--store must be play or appstore, got "foo"');
+    expect(s.makeStore).not.toHaveBeenCalled();
+  });
+
   it("--store appstore pulls via the appstore store", async () => {
     const appOnly = { ...config, stores: { appstore: { appId: "123", platform: "IOS" } } };
     const { cwd } = await makeProject({ "storelingo.config.json": JSON.stringify(appOnly) }, appOnly);
@@ -270,6 +278,45 @@ describe("pull/push", () => {
     expect(makeStore).toHaveBeenCalledWith("appstore", expect.anything(), expect.anything());
     expect(await readFile(join(cwd, "fastlane/metadata/en-US/name.txt"), "utf8")).toBe("Prayer Times");
     expect(s.out.join("\n")).toContain("Pulled from App Store");
+  });
+
+  describe("skipped-changes note", () => {
+    it("tells App Store users to create a new version", async () => {
+      const as = { ...config, stores: { appstore: { appId: "123", platform: "IOS" } } };
+      const A = "fastlane/metadata/en-US";
+      const { cwd } = await makeProject(
+        {
+          "storelingo.config.json": JSON.stringify(as),
+          [`${A}/name.txt`]: "N",
+          [`${A}/description.txt`]: "New",
+          [`${A}/keywords.txt`]: "k",
+          [`${A}/promotional_text.txt`]: "New promo",
+        },
+        as,
+      );
+      const fake = fakeStore(
+        [{ locale: "en-US", fields: { name: "N", description: "Old", keywords: "k", promotional_text: "Old promo" } }],
+        { store: "appstore", writable: (f) => f === "promotional_text" },
+      );
+      const s = deps(cwd, { makeStore: vi.fn(async () => fake.client), isTTY: false });
+      expect(await run(s.d, "push", "--yes")).toBe(0);
+      expect(s.out.join("\n")).toContain(
+        "Some changes were skipped: create a new version in App Store Connect to push them.",
+      );
+    });
+
+    it("says the fields can't be changed in Google Play for other stores", async () => {
+      const { cwd } = await makeProject(files, config);
+      const fake = fakeStore(
+        [{ locale: "en-US", fields: { title: "Old", short_description: "Old", full_description: "Long" } }],
+        { writable: (f) => f === "title" },
+      );
+      const s = deps(cwd, { makeStore: vi.fn(async () => fake.client), isTTY: false });
+      expect(await run(s.d, "push", "--yes")).toBe(0);
+      const out = s.out.join("\n");
+      expect(out).toContain("Some changes were skipped: these fields can't be changed in Google Play.");
+      expect(out).not.toContain("App Store Connect to push them");
+    });
   });
 
   describe("both stores configured", () => {
