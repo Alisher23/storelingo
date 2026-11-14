@@ -240,7 +240,7 @@ npx storelingo push --store appstore
 
 ## GitHub Action
 
-Запускайте storelingo в CI через `uses: Alisher23/storelingo@main` (после первого релиза закрепите тег или SHA коммита). Он может переводить при push и коммитить результат либо только запускать офлайн-проверку `check` в pull request'ах без секретов. Workflow, параметры и заметки по безопасности смотрите в [руководстве по GitHub Action](https://github.com/Alisher23/storelingo/blob/main/docs/github-action.ru.md).
+Запускайте storelingo в CI через `uses: Alisher23/storelingo@v0.4.0` (закрепляйте релизный тег или SHA коммита). Он может переводить при push и коммитить результат либо только запускать офлайн-проверку `check` в pull request'ах без секретов. Workflow, параметры и заметки по безопасности смотрите в [руководстве по GitHub Action](https://github.com/Alisher23/storelingo/blob/main/docs/github-action.ru.md).
 
 ## Как работает перевод
 

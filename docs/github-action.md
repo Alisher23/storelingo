@@ -4,7 +4,7 @@ Run storelingo in CI: translate your store listings when the source texts change
 
 [Русская версия](github-action.ru.md)
 
-Until a release tag exists, use `Alisher23/storelingo@main`. After the first release, pin a tag or a full commit SHA instead of a branch.
+Pin a release tag such as `Alisher23/storelingo@v0.4.0` (or a full commit SHA for maximum safety). `@main` follows the latest unreleased code.
 
 ## Quick start: translate on push to main
 
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@main
+      - uses: Alisher23/storelingo@v0.4.0
         with:
           command: translate-and-check
           commit: "true"
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@main
+      - uses: Alisher23/storelingo@v0.4.0
         with:
           command: check
 ```
@@ -101,5 +101,5 @@ Key inputs are masked in the log. For OpenRouter or another OpenAI-compatible pr
 
 - **Pull requests from forks have no secrets.** GitHub does not pass repository secrets to workflows triggered by fork PRs, so `translate` fails there. Use `command: check` for pull requests, and run `translate` only on `push` to your own branches.
 - **Do not use `pull_request_target` and check out the pull request code.** `pull_request_target` runs with secrets and write access; combined with a checkout of untrusted PR code, a malicious `storelingo.config.json` or workflow change could read your secrets. Keep translation workflows on `push` or `pull_request` for trusted branches.
-- **Pin the action.** A branch such as `main` can change; after the first release pin a tag or a full commit SHA.
+- **Pin the action.** A branch such as `main` can change; pin a release tag (for example `v0.4.0`) or a full commit SHA.
 - The action builds storelingo from source on every run (`npm ci` and `npm run build`), so a run takes a little longer than `npx`.

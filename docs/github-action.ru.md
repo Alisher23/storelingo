@@ -4,7 +4,7 @@
 
 [English version](github-action.md)
 
-Пока нет релизного тега, используйте `Alisher23/storelingo@main`. После первого релиза закрепляйте тег или полный SHA коммита вместо ветки.
+Закрепляйте релизный тег, например `Alisher23/storelingo@v0.4.0` (или полный SHA коммита для максимальной надёжности). `@main` указывает на последний невыпущенный код.
 
 ## Быстрый старт: перевод при push в main
 
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@main
+      - uses: Alisher23/storelingo@v0.4.0
         with:
           command: translate-and-check
           commit: "true"
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@main
+      - uses: Alisher23/storelingo@v0.4.0
         with:
           command: check
 ```
@@ -101,5 +101,5 @@ jobs:
 
 - **В pull request'ах из форков секретов нет.** GitHub не передаёт секреты репозитория в workflow, запущенные из форков, поэтому `translate` там упадёт. Для pull request'ов используйте `command: check`, а `translate` запускайте только при `push` в свои ветки.
 - **Не используйте `pull_request_target` вместе с checkout кода из pull request'а.** `pull_request_target` работает с секретами и правом записи; в сочетании с checkout недоверенного кода вредоносный `storelingo.config.json` или правка workflow могут прочитать ваши секреты. Держите workflow с переводом на `push` или `pull_request` для доверенных веток.
-- **Закрепляйте версию action.** Ветка вроде `main` может измениться; после первого релиза закрепите тег или полный SHA коммита.
+- **Закрепляйте версию action.** Ветка вроде `main` может измениться: закрепляйте тег (например `v0.4.0`) или полный SHA коммита.
 - Action собирает storelingo из исходников при каждом запуске (`npm ci` и `npm run build`), поэтому запуск чуть дольше, чем через `npx`.
