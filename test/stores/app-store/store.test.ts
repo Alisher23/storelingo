@@ -214,6 +214,16 @@ describe("createAppStoreStore", () => {
     expect(api.createVersionLocalization).not.toHaveBeenCalled();
   });
 
+  it("live-only: promotional text for a language missing on the live version makes no API call", async () => {
+    const api = fakeApi(liveSetup());
+    const session = await createAppStoreStore(api, opts).open();
+    await session.update({ locale: "ru", fields: { promotional_text: "P" } });
+    expect(api.createAppInfoLocalization).not.toHaveBeenCalled();
+    expect(api.updateAppInfoLocalization).not.toHaveBeenCalled();
+    expect(api.createVersionLocalization).not.toHaveBeenCalled();
+    expect(api.updateVersionLocalization).not.toHaveBeenCalled();
+  });
+
   it("does not POST a version localization when there is no editable version", async () => {
     const setup = liveSetup();
     setup.infoLocs!["i-live"]!.push({ id: "il-ru", attributes: { locale: "ru", name: "Имя" } });
