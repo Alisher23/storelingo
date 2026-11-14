@@ -4,7 +4,7 @@
 
 [English version](github-action.md)
 
-Закрепляйте релизный тег, например `Alisher23/storelingo@v0.4.0` (или полный SHA коммита для максимальной надёжности). `@main` указывает на последний невыпущенный код.
+Закрепляйте релизный тег, например `Alisher23/storelingo@v0.4.1` (или полный SHA коммита для максимальной надёжности). `@main` указывает на последний невыпущенный код.
 
 ## Быстрый старт: перевод при push в main
 
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@v0.4.0
+      - uses: Alisher23/storelingo@v0.4.1
         with:
           command: translate-and-check
           commit: "true"
@@ -44,7 +44,7 @@ Action переводит изменившиеся поля, запускает 
 - Защита ветки может отклонить push (например, если для ветки обязательны pull request'ы или проверки статуса). Пушьте в незащищённую ветку или разрешите `github-actions[bot]` обходить защиту.
 - Добавьте группу `concurrency:` (как в примере), чтобы два запуска не пушили одновременно.
 
-Коммитится только результат storelingo: папки метаданных из `paths` (по умолчанию `fastlane/metadata/android` для Google Play и `fastlane/metadata` для App Store, только для настроенных магазинов) и `storelingo.lock.json`. Если сборка, `translate` или `check` упали либо запуск отменён, ничего не коммитится и не пушится. `commit: "true"` допускается только для событий `push`, `workflow_dispatch` и `schedule` и только в ветке; для любого другого события (например `pull_request` или `pull_request_target`) или тега action останавливается с ошибкой до сборки и перевода (для pull request'ов используйте `command: check`).
+Коммитится только результат storelingo (пути понимаются буквально, а файлы, добавленные в индекс предыдущими шагами workflow, в коммит не попадают): папки метаданных из `paths` (по умолчанию `fastlane/metadata/android` для Google Play и `fastlane/metadata` для App Store, только для настроенных магазинов) и `storelingo.lock.json`. Если сборка, `translate` или `check` упали либо запуск отменён, ничего не коммитится и не пушится. `commit: "true"` допускается только для событий `push`, `workflow_dispatch` и `schedule` и только в ветке; для любого другого события (например `pull_request` или `pull_request_target`) или тега action останавливается с ошибкой до сборки и перевода (для pull request'ов используйте `command: check`).
 
 Action никогда не пушит, если `commit` не равен `"true"`. При `commit: "false"` (по умолчанию) файлы меняются только в рабочей папке раннера.
 
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@v0.4.0
+      - uses: Alisher23/storelingo@v0.4.1
         with:
           command: check
 ```
@@ -101,5 +101,5 @@ jobs:
 
 - **В pull request'ах из форков секретов нет.** GitHub не передаёт секреты репозитория в workflow, запущенные из форков, поэтому `translate` там упадёт. Для pull request'ов используйте `command: check`, а `translate` запускайте только при `push` в свои ветки.
 - **Не используйте `pull_request_target` вместе с checkout кода из pull request'а.** `pull_request_target` работает с секретами и правом записи; в сочетании с checkout недоверенного кода вредоносный `storelingo.config.json` или правка workflow могут прочитать ваши секреты. Держите workflow с переводом на `push` или `pull_request` для доверенных веток.
-- **Закрепляйте версию action.** Ветка вроде `main` может измениться: закрепляйте тег (например `v0.4.0`) или полный SHA коммита.
+- **Закрепляйте версию action.** Ветка вроде `main` может измениться: закрепляйте тег (например `v0.4.1`) или полный SHA коммита.
 - Action собирает storelingo из исходников при каждом запуске (`npm ci` и `npm run build`), поэтому запуск чуть дольше, чем через `npx`.

@@ -1,6 +1,6 @@
 {
   "name": "storelingo",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "AI localization for Google Play and App Store listings. Reads and writes fastlane metadata.",
   "type": "module",
   "bin": {

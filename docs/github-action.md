@@ -4,7 +4,7 @@ Run storelingo in CI: translate your store listings when the source texts change
 
 [Русская версия](github-action.ru.md)
 
-Pin a release tag such as `Alisher23/storelingo@v0.4.0` (or a full commit SHA for maximum safety). `@main` follows the latest unreleased code.
+Pin a release tag such as `Alisher23/storelingo@v0.4.1` (or a full commit SHA for maximum safety). `@main` follows the latest unreleased code.
 
 ## Quick start: translate on push to main
 
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@v0.4.0
+      - uses: Alisher23/storelingo@v0.4.1
         with:
           command: translate-and-check
           commit: "true"
@@ -44,7 +44,7 @@ Requirements for `commit: "true"`:
 - Branch protection can reject the push (for example when pull requests or status checks are required on the branch). Push to an unprotected branch or allow `github-actions[bot]` to bypass.
 - Add a `concurrency:` group (as in the example) so that two runs do not push at the same time.
 
-Only storelingo output is committed: the metadata folders from `paths` (defaults `fastlane/metadata/android` for Google Play and `fastlane/metadata` for the App Store, only for configured stores) and `storelingo.lock.json`. Nothing is committed or pushed if the build, `translate` or `check` failed or the run was cancelled. `commit: "true"` is accepted only on the `push`, `workflow_dispatch` and `schedule` events, and only on a branch; for any other event (such as `pull_request` or `pull_request_target`) or on a tag the action stops with an error before it builds or translates anything (for pull requests use `command: check`).
+Only storelingo output is committed (paths are taken literally, and files staged by earlier workflow steps are left out of the commit): the metadata folders from `paths` (defaults `fastlane/metadata/android` for Google Play and `fastlane/metadata` for the App Store, only for configured stores) and `storelingo.lock.json`. Nothing is committed or pushed if the build, `translate` or `check` failed or the run was cancelled. `commit: "true"` is accepted only on the `push`, `workflow_dispatch` and `schedule` events, and only on a branch; for any other event (such as `pull_request` or `pull_request_target`) or on a tag the action stops with an error before it builds or translates anything (for pull requests use `command: check`).
 
 The action never pushes unless `commit` is `"true"`. With `commit: "false"` (the default) the files are only changed in the runner's workspace.
 
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@v0.4.0
+      - uses: Alisher23/storelingo@v0.4.1
         with:
           command: check
 ```
@@ -101,5 +101,5 @@ Key inputs are masked in the log. For OpenRouter or another OpenAI-compatible pr
 
 - **Pull requests from forks have no secrets.** GitHub does not pass repository secrets to workflows triggered by fork PRs, so `translate` fails there. Use `command: check` for pull requests, and run `translate` only on `push` to your own branches.
 - **Do not use `pull_request_target` and check out the pull request code.** `pull_request_target` runs with secrets and write access; combined with a checkout of untrusted PR code, a malicious `storelingo.config.json` or workflow change could read your secrets. Keep translation workflows on `push` or `pull_request` for trusted branches.
-- **Pin the action.** A branch such as `main` can change; pin a release tag (for example `v0.4.0`) or a full commit SHA.
+- **Pin the action.** A branch such as `main` can change; pin a release tag (for example `v0.4.1`) or a full commit SHA.
 - The action builds storelingo from source on every run (`npm ci` and `npm run build`), so a run takes a little longer than `npx`.

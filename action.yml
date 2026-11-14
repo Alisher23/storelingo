@@ -123,6 +123,8 @@ runs:
         BUILD_OUTCOME: ${{ steps.build.outcome }}
         TRANSLATE_OUTCOME: ${{ steps.translate.outcome }}
         CHECK_OUTCOME: ${{ steps.check.outcome }}
+        # Treat every path below literally (no glob magic in config paths).
+        GIT_LITERAL_PATHSPECS: "1"
       run: |
         if [ "$STORELINGO_COMMIT" != "true" ]; then
           echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -170,8 +172,9 @@ runs:
           exit 0
         fi
         git add -A -- "${PATHS[@]}"
+        # Commit only these paths, even if an earlier workflow step staged other files.
         git -c user.name="github-actions[bot]" \
             -c user.email="41898099+github-actions[bot]@users.noreply.github.com" \
-            commit -m "$STORELINGO_COMMIT_MESSAGE"
+            commit -m "$STORELINGO_COMMIT_MESSAGE" -- "${PATHS[@]}"
         git push origin "HEAD:$BRANCH"
         echo "changed=true" >> "$GITHUB_OUTPUT"
