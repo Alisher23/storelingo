@@ -17,10 +17,10 @@ export interface StoreSession {
   abort(): Promise<void>;
   /** False when updates apply immediately and one by one (no commit/rollback). Default: true. */
   readonly atomic?: boolean;
-  /** Whether this session can write the field; undefined means every field is writable. */
-  isWritable?(field: string): boolean;
+  /** Whether this session can write the field (for `locale`, when given); undefined means every field is writable. */
+  isWritable?(field: string, locale?: string): boolean;
   /** Why a non-writable field is skipped, shown as `skipped (<reason>)`; undefined falls back to a generic reason. */
-  skipReason?(field: string): string | undefined;
+  skipReason?(field: string, locale?: string): string | undefined;
   /** Human-readable facts about this session to show before the diff (e.g. "no editable version"). */
   readonly notes?: readonly string[];
 }

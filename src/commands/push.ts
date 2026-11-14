@@ -64,7 +64,6 @@ export async function runPush(opts: {
     }
     if (diffs.length === 0 && skipped.length > 0) {
       for (const line of skipped) log.info(line);
-      await session.abort();
       throw new StorelingoError(
         "E_NO_EDITABLE_VERSION",
         "Nothing can be pushed: every change needs an editable version in App Store Connect",
@@ -132,18 +131,18 @@ function applyWritability(
   store: StoreId,
   problems: string[],
 ): { diffs: ListingDiff[]; skipped: string[] } {
-  const writable = (field: string) => session.isWritable?.(field) !== false;
+  const writable = (field: string, locale: string) => session.isWritable?.(field, locale) !== false;
   const kept: ListingDiff[] = [];
   const skipped: string[] = [];
   for (const diff of diffs) {
-    if (diff.isNew && REQUIRED_FOR_NEW[store].some((f) => !writable(f))) {
+    if (diff.isNew && REQUIRED_FOR_NEW[store].some((f) => !writable(f, diff.locale))) {
       problems.push(`${diff.locale}: a new listing needs an editable app info and version in App Store Connect`);
       continue;
     }
     const fields = { ...diff.merged.fields };
     const changes = diff.changes.filter((c) => {
-      if (writable(c.field)) return true;
-      skipped.push(`${diff.locale}/${c.field}: skipped (${session.skipReason?.(c.field) ?? GENERIC_SKIP_REASON})`);
+      if (writable(c.field, diff.locale)) return true;
+      skipped.push(`${diff.locale}/${c.field}: skipped (${session.skipReason?.(c.field, diff.locale) ?? GENERIC_SKIP_REASON})`);
       if (c.from === undefined) delete fields[c.field];
       else fields[c.field] = c.from;
       return false;

@@ -279,6 +279,31 @@ describe("runPush with App Store-like stores", () => {
     expect(state.updates[0]!.fields).toMatchObject({ title: "New title", video: "v" });
   });
 
+  it("skips a change the store can't write for that locale and passes the locale along", async () => {
+    const files = {
+      ...asSource,
+      [`${A}/ru/name.txt`]: "Имя",
+      [`${A}/ru/description.txt`]: "Описание",
+      [`${A}/ru/keywords.txt`]: "к",
+      [`${A}/ru/promotional_text.txt`]: "Новое промо",
+    };
+    const remoteTwo = [
+      ...asRemote,
+      { locale: "ru", fields: { name: "Имя", description: "Описание", keywords: "к", promotional_text: "Старое" } },
+    ];
+    const { cwd, config: cfg } = await makeProject(files, asConfig);
+    const { client, state } = fakeStore(remoteTwo, {
+      store: "appstore",
+      writable: (f, locale) => f !== "promotional_text" || locale === "en-US",
+      skipReason: (f, locale) => `no ${locale} for ${f}`,
+    });
+    const report = await runPush({ config: cfg, cwd, client, log: capture().log, confirm: yes });
+    expect(report.status).toBe("pushed");
+    expect(report.locales).toEqual(["en-US"]);
+    expect(report.skipped).toEqual(["ru/promotional_text: skipped (no ru for promotional_text)"]);
+    expect(state.updates.map((u) => u.locale)).toEqual(["en-US"]);
+  });
+
   it("uses the store's skip reason per field", async () => {
     const { cwd, config: cfg } = await makeProject(asSource, asConfig);
     const { client } = fakeStore(asRemote, {

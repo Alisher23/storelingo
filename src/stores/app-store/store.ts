@@ -118,14 +118,19 @@ export function createAppStoreStore(api: AscApi, opts: { appId: string; platform
       if (!editableInfo) notes.push(NO_INFO_NOTE);
 
       const infoKeys: readonly string[] = INFO_FIELDS.map(([k]) => k);
-      const isWritable = (field: string): boolean => {
+      const isWritable = (field: string, locale?: string): boolean => {
         if (infoKeys.includes(field)) return !!editableInfo;
-        if (field === "promotional_text") return !!readVersion;
+        if (field === "promotional_text") {
+          // Without an editable version the text goes to the live version, which can't get a new language.
+          if (editableVersion) return true;
+          return !!readVersion && (locale === undefined || versionLocs.has(locale));
+        }
         if (field === "release_notes" && firstVersion) return false;
         return VERSION_FIELDS.some(([k]) => k === field) && !!editableVersion;
       };
-      const skipReason = (field: string): string | undefined => {
-        if (isWritable(field)) return undefined;
+      const skipReason = (field: string, locale?: string): string | undefined => {
+        if (isWritable(field, locale)) return undefined;
+        if (field === "promotional_text" && readVersion) return "this language doesn't exist on the live version yet";
         if (infoKeys.includes(field)) return "no editable app info in App Store Connect";
         if (field === "release_notes" && firstVersion) return "Apple shows release notes only for updates";
         if (VERSION_FIELDS.some(([k]) => k === field)) return "no editable version in App Store Connect";
@@ -152,11 +157,11 @@ export function createAppStoreStore(api: AscApi, opts: { appId: string; platform
           const versionAttrs: Record<string, string> = {};
           for (const [key, attr] of INFO_FIELDS) {
             const value = listing.fields[key];
-            if (value !== undefined && isWritable(key)) infoAttrs[attr] = value;
+            if (value !== undefined && isWritable(key, listing.locale)) infoAttrs[attr] = value;
           }
           for (const [key, attr] of VERSION_FIELDS) {
             const value = listing.fields[key];
-            if (value !== undefined && isWritable(key)) versionAttrs[attr] = value;
+            if (value !== undefined && isWritable(key, listing.locale)) versionAttrs[attr] = value;
           }
           if (editableInfo && Object.keys(infoAttrs).length > 0) {
             const existing = infoLocs.get(listing.locale);

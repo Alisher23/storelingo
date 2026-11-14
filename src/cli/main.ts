@@ -256,7 +256,11 @@ export async function main(argv: string[], deps: CliDeps = defaultDeps()): Promi
                     "promotional text on the live version changes right away.",
             );
             if (report.skipped.length > 0) {
-              log.info("Some changes were skipped: create a new version in App Store Connect to push them.");
+              log.info(
+                store === "appstore"
+                  ? "Some changes were skipped: create a new version in App Store Connect to push them."
+                  : `Some changes were skipped: these fields can't be changed in ${name}.`,
+              );
             }
             break;
           }
