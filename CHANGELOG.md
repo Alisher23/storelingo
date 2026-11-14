@@ -2,7 +2,7 @@
 
 ## 0.4.0 — unreleased
 
-- GitHub Action (`uses: Alisher23/storelingo@main`): runs `translate` and/or `check` in CI. Optional `commit` of the translated files: only storelingo output is committed, only on a push to a branch, and never after a failed `translate` or `check`. Setup guide in `docs/github-action.md`.
+- GitHub Action (`uses: Alisher23/storelingo@main`): runs `translate` and/or `check` in CI. Optional `commit` of the translated files: only storelingo output is committed, only on `push`, `workflow_dispatch` or `schedule` runs on a branch, and never after a failed or cancelled step. Setup guide in `docs/github-action.md`.
 - Retry-After delays from servers are capped at 60 s (thanks @yonash24, #10).
 - App Store: promotional text without an editable version is sent only for languages that already exist on the live version; other languages are shown as skipped.
 - The final "some changes were skipped" note is store-specific.
