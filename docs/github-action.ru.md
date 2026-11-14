@@ -34,6 +34,8 @@ jobs:
 
 Action переводит изменившиеся поля, запускает `check` и, так как `commit` равен `"true"`, коммитит изменённые файлы (метаданные fastlane и `storelingo.lock.json` внутри `working-directory`) от имени `github-actions[bot]` и пушит их в текущую ветку. Для push нужен `permissions: contents: write`. Коммит, отправленный через стандартный `GITHUB_TOKEN`, не запускает новые workflow, поэтому цикла не будет.
 
+Коммитится только результат storelingo: папки метаданных из `paths` (по умолчанию `fastlane/metadata/android` для Google Play и `fastlane/metadata` для App Store, только для настроенных магазинов) и `storelingo.lock.json`. Если `translate` или `check` упали, ничего не коммитится и не пушится. `commit: "true"` допускается только при `push` в ветку; при `pull_request`, `pull_request_target` или теге action останавливается с ошибкой (для pull request'ов используйте `command: check`).
+
 Action никогда не пушит, если `commit` не равен `"true"`. При `commit: "false"` (по умолчанию) файлы меняются только в рабочей папке раннера.
 
 ## Проверка pull request'а (без секретов)
@@ -62,7 +64,7 @@ jobs:
 |---|---|---|
 | `command` | `translate-and-check` | `translate`, `check` или `translate-and-check`. Любое другое значение проваливает job. |
 | `working-directory` | `.` | Папка с `storelingo.config.json`. |
-| `args` | пусто | Дополнительные аргументы для `translate`, разбиваются по пробелам (например `--locale ru --force`). |
+| `args` | пусто | Дополнительные аргументы для `translate`, разбиваются по пробелам (например `--locale ru --force`). Кавычки не учитываются, поэтому аргумент не может содержать пробелы. |
 | `commit` | `"false"` | `"true"` коммитит и пушит изменённые файлы. |
 | `commit-message` | `chore: update store listing translations (storelingo)` | Сообщение коммита. |
 | `anthropic-api-key` | пусто | Ключ Anthropic (`ANTHROPIC_API_KEY`). Передавайте секрет. |
@@ -83,7 +85,7 @@ jobs:
 2. Создайте секрет репозитория `ANTHROPIC_API_KEY` со своим ключом.
 3. Передайте его в action: `anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}`.
 
-Ключи из входных параметров маскируются в логе. Для OpenRouter или другого OpenAI-совместимого провайдера используйте `translator-api-key` вместе с `translator-api-host` и настройте `translator` в `storelingo.config.json`, как описано в [README](https://github.com/Alisher23/storelingo/blob/main/README.ru.md).
+Ключи из входных параметров маскируются в логе. Для OpenRouter или другого OpenAI-совместимого провайдера используйте `translator-api-key` вместе с `translator-api-host` и настройте `translator` в `storelingo.config.json`, как описано в [README](https://github.com/Alisher23/storelingo/blob/main/README.ru.md#переводчики-и-api-ключи).
 
 ## Ограничения и безопасность
 

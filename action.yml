@@ -67,6 +67,7 @@ runs:
       run: npm ci --no-audit --no-fund && npm run build
 
     - name: Translate
+      id: translate
       if: inputs.command == 'translate' || inputs.command == 'translate-and-check'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -85,6 +86,7 @@ runs:
         node "$GITHUB_ACTION_PATH/dist/bin.js" translate $STORELINGO_ARGS
 
     - name: Check
+      id: check
       if: inputs.command == 'check' || inputs.command == 'translate-and-check'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -99,18 +101,48 @@ runs:
         STORELINGO_COMMIT: ${{ inputs.commit }}
         STORELINGO_COMMIT_MESSAGE: ${{ inputs.commit-message }}
         BRANCH: ${{ github.head_ref || github.ref_name }}
+        EVENT_NAME: ${{ github.event_name }}
+        REF_TYPE: ${{ github.ref_type }}
+        TRANSLATE_OUTCOME: ${{ steps.translate.outcome }}
+        CHECK_OUTCOME: ${{ steps.check.outcome }}
       run: |
         if [ "$STORELINGO_COMMIT" != "true" ]; then
           echo "changed=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        if [ -z "$(git status --porcelain -- .)" ]; then
+        if [ "$EVENT_NAME" = "pull_request" ] || [ "$EVENT_NAME" = "pull_request_target" ] || [ "$REF_TYPE" = "tag" ]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          echo "::error::commit: true is allowed only on push to a branch. For pull requests use command: check."
+          exit 1
+        fi
+        if [ "$TRANSLATE_OUTCOME" = "failure" ] || [ "$CHECK_OUTCOME" = "failure" ]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          echo "Skipping commit because an earlier storelingo step failed."
+          exit 0
+        fi
+        # Only storelingo output: the configured metadata folders and the lock file.
+        mapfile -t PATHS < <(node -e '
+          const fs = require("node:fs");
+          const c = JSON.parse(fs.readFileSync("storelingo.config.json", "utf8"));
+          const s = c.stores ?? {};
+          const p = c.paths ?? {};
+          const out = [];
+          if (s.play) out.push(p.play ?? "fastlane/metadata/android");
+          if (s.appstore) out.push(p.appstore ?? "fastlane/metadata");
+          out.push("storelingo.lock.json");
+          console.log(out.join("\n"));
+        ')
+        if [ "${#PATHS[@]}" -eq 0 ]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if [ -z "$(git status --porcelain -- "${PATHS[@]}")" ]; then
           echo "changed=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
         git config user.name "github-actions[bot]"
         git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
-        git add -A -- .
+        git add -A -- "${PATHS[@]}"
         git commit -m "$STORELINGO_COMMIT_MESSAGE"
         git push origin "HEAD:$BRANCH"
         echo "changed=true" >> "$GITHUB_OUTPUT"

@@ -34,6 +34,8 @@ jobs:
 
 The action translates the changed fields, runs `check`, and, because `commit` is `"true"`, commits the changed files (fastlane metadata and `storelingo.lock.json` inside `working-directory`) as `github-actions[bot]` and pushes them to the current branch. `permissions: contents: write` is required for the push. The commit pushed with the default `GITHUB_TOKEN` does not start new workflow runs, so it cannot cause a loop.
 
+Only storelingo output is committed: the metadata folders from `paths` (defaults `fastlane/metadata/android` for Google Play and `fastlane/metadata` for the App Store, only for configured stores) and `storelingo.lock.json`. Nothing is committed or pushed if `translate` or `check` failed. `commit: "true"` is accepted only on `push` to a branch; on `pull_request`, `pull_request_target` or a tag the action stops with an error (for pull requests use `command: check`).
+
 The action never pushes unless `commit` is `"true"`. With `commit: "false"` (the default) the files are only changed in the runner's workspace.
 
 ## Pull request check (no secrets)
@@ -62,7 +64,7 @@ jobs:
 |---|---|---|
 | `command` | `translate-and-check` | `translate`, `check` or `translate-and-check`. Any other value fails the job. |
 | `working-directory` | `.` | Directory with `storelingo.config.json`. |
-| `args` | empty | Extra arguments for `translate`, split on whitespace (for example `--locale ru --force`). |
+| `args` | empty | Extra arguments for `translate`, split on whitespace (for example `--locale ru --force`). Quotes are not honored, so an argument cannot contain spaces. |
 | `commit` | `"false"` | `"true"` commits and pushes the changed files. |
 | `commit-message` | `chore: update store listing translations (storelingo)` | Commit message. |
 | `anthropic-api-key` | empty | Anthropic API key (`ANTHROPIC_API_KEY`). Pass a secret. |

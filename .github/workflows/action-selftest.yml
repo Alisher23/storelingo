@@ -15,23 +15,33 @@ jobs:
           node-version: 22
       - name: Start mock LLM server
         run: |
-          node test/fixtures/mock-llm.mjs 8787 &
+          node test/fixtures/mock-llm.mjs 8787 > mock.log 2>&1 &
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8787/v1/chat/completions -d '{}' || true)
             if [ "$code" = "200" ]; then exit 0; fi
             sleep 1
           done
           echo "mock server did not start" >&2
+          cat mock.log
           exit 1
       - name: Run the action
+        id: storelingo
         uses: ./
         with:
           command: translate-and-check
           working-directory: test/fixtures/action-project
           commit: "false"
       - name: Assert generated files
+        env:
+          CHANGED: ${{ steps.storelingo.outputs.changed }}
         run: |
+          test "$CHANGED" = "false"
           cd test/fixtures/action-project
           test -s fastlane/metadata/android/ru-RU/title.txt
           test -s fastlane/metadata/android/de-DE/title.txt
           test -s storelingo.lock.json
+          grep -q Mock fastlane/metadata/android/ru-RU/title.txt
+          grep -q Mock fastlane/metadata/android/de-DE/title.txt
+      - name: Mock server log
+        if: failure()
+        run: cat mock.log
