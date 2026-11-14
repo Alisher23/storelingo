@@ -311,7 +311,7 @@ Lock-файл коммитится в git, чтобы CI и соавторы р�
 - Лицензия MIT. README на английском, `README.ru.md`, `CONTRIBUTING.md`, шаблоны issue/PR, `CHANGELOG.md`, semver.
 - Публикация в npm из GitHub Actions по тегу, с `--provenance`.
 - `docs/`: пошаговые гайды «создать сервисный аккаунт Google Play» и «создать API-ключ App Store Connect».
-- После v1.0: GitHub Action-обёртка (`storelingo translate` + `check` в PR).
+- GitHub Action (с v0.4): composite `action.yml` в корне репозитория, собирается из своего checkout; запускает `translate` и/или `check`; по желанию коммитит только вывод storelingo (папки метаданных + lock) и только при push в ветку / workflow_dispatch / schedule, никогда после упавшего или отменённого шага. Гайд: `docs/github-action.md`.
 - Метки `good first issue`: новые магазины, провайдеры, локали, поправки лимитов.
 
 ## 11. Вехи
@@ -319,4 +319,5 @@ Lock-файл коммитится в git, чтобы CI и соавторы р�
 1. **v0.1:** `init`, `translate`, `check` (без магазинов, полезно с fastlane).
 2. **v0.2:** Google Play `pull`/`push`.
 3. **v0.3:** App Store `pull`/`push`.
-4. **v1.0:** e2e на реальном приложении, гайды, публичный анонс.
+4. **v0.4:** GitHub Action с e2e самотестом (мок OpenAI-совместимого сервера), доработки после v0.3.
+5. **v1.0:** e2e на реальном приложении, публикация в npm, публичный анонс.
