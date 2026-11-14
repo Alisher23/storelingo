@@ -20,6 +20,9 @@ on:
       - "fastlane/metadata/en-US/**"
 permissions:
   contents: write
+concurrency:
+  group: storelingo-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   storelingo:
     runs-on: ubuntu-latest
@@ -32,9 +35,16 @@ jobs:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-The action translates the changed fields, runs `check`, and, because `commit` is `"true"`, commits the changed files (fastlane metadata and `storelingo.lock.json` inside `working-directory`) as `github-actions[bot]` and pushes them to the current branch. `permissions: contents: write` is required for the push. The commit pushed with the default `GITHUB_TOKEN` does not start new workflow runs, so it cannot cause a loop.
+The action translates the changed fields, runs `check`, and, because `commit` is `"true"`, commits the changed files (fastlane metadata and `storelingo.lock.json` inside `working-directory`) as `github-actions[bot]` and pushes them to the current branch. The commit pushed with the default `GITHUB_TOKEN` does not start new workflow runs, so it cannot cause a loop.
 
-Only storelingo output is committed: the metadata folders from `paths` (defaults `fastlane/metadata/android` for Google Play and `fastlane/metadata` for the App Store, only for configured stores) and `storelingo.lock.json`. Nothing is committed or pushed if `translate` or `check` failed. `commit: "true"` is accepted only on `push` to a branch; on `pull_request`, `pull_request_target` or a tag the action stops with an error (for pull requests use `command: check`).
+Requirements for `commit: "true"`:
+
+- `permissions: contents: write` on the job.
+- `actions/checkout` with its default persisted credentials (do not set `persist-credentials: false`), because the action pushes with the credentials checkout stored.
+- Branch protection can reject the push (for example when pull requests or status checks are required on the branch). Push to an unprotected branch or allow `github-actions[bot]` to bypass.
+- Add a `concurrency:` group (as in the example) so that two runs do not push at the same time.
+
+Only storelingo output is committed: the metadata folders from `paths` (defaults `fastlane/metadata/android` for Google Play and `fastlane/metadata` for the App Store, only for configured stores) and `storelingo.lock.json`. Nothing is committed or pushed if the build, `translate` or `check` failed or the run was cancelled. `commit: "true"` is accepted only on the `push`, `workflow_dispatch` and `schedule` events, and only on a branch; for any other event (such as `pull_request` or `pull_request_target`) or on a tag the action stops with an error before it builds or translates anything (for pull requests use `command: check`).
 
 The action never pushes unless `commit` is `"true"`. With `commit: "false"` (the default) the files are only changed in the runner's workspace.
 
@@ -71,7 +81,7 @@ jobs:
 | `openai-api-key` | empty | OpenAI API key (`OPENAI_API_KEY`), for `api.openai.com` only. Pass a secret. |
 | `translator-api-key` | empty | Key for another OpenAI-compatible host (`STORELINGO_TRANSLATOR_API_KEY`). Pass a secret. |
 | `translator-api-host` | empty | Host allowed to receive requests (`STORELINGO_TRANSLATOR_API_HOST`). |
-| `node-version` | `22` | Node.js version used to build and run storelingo. |
+| `node-version` | `22` | Node.js version used to build and run storelingo. Must be 22.13 or newer. The action's `setup-node` step changes the Node version for the later steps of the same job. |
 
 ## Outputs
 

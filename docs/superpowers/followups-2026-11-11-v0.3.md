@@ -14,3 +14,7 @@ Not blocking the v0.3 merge; one line each.
 ## Noted at the final re-review
 - (done in v0.4) M2 side effect: a locale present in app info localizations but missing on the live version, with only promotional_text changed and no editable version, shows as a pushable change; update() sends nothing yet push reports it as pushed. Filter such changes as skipped.
 - (done in v0.4) Spec §7.2 bullet nesting fixed.
+
+## v0.4 follow-ups
+- Pin `actions/setup-node` inside `action.yml` by SHA for users who pin storelingo by SHA.
+- Spec section 10/11: mention the v0.4 GitHub Action and add a v0.4 milestone (the controller does this in the spec).

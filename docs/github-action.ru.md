@@ -20,6 +20,9 @@ on:
       - "fastlane/metadata/en-US/**"
 permissions:
   contents: write
+concurrency:
+  group: storelingo-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   storelingo:
     runs-on: ubuntu-latest
@@ -32,9 +35,16 @@ jobs:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-Action переводит изменившиеся поля, запускает `check` и, так как `commit` равен `"true"`, коммитит изменённые файлы (метаданные fastlane и `storelingo.lock.json` внутри `working-directory`) от имени `github-actions[bot]` и пушит их в текущую ветку. Для push нужен `permissions: contents: write`. Коммит, отправленный через стандартный `GITHUB_TOKEN`, не запускает новые workflow, поэтому цикла не будет.
+Action переводит изменившиеся поля, запускает `check` и, так как `commit` равен `"true"`, коммитит изменённые файлы (метаданные fastlane и `storelingo.lock.json` внутри `working-directory`) от имени `github-actions[bot]` и пушит их в текущую ветку. Коммит, отправленный через стандартный `GITHUB_TOKEN`, не запускает новые workflow, поэтому цикла не будет.
 
-Коммитится только результат storelingo: папки метаданных из `paths` (по умолчанию `fastlane/metadata/android` для Google Play и `fastlane/metadata` для App Store, только для настроенных магазинов) и `storelingo.lock.json`. Если `translate` или `check` упали, ничего не коммитится и не пушится. `commit: "true"` допускается только при `push` в ветку; при `pull_request`, `pull_request_target` или теге action останавливается с ошибкой (для pull request'ов используйте `command: check`).
+Требования для `commit: "true"`:
+
+- `permissions: contents: write` у job.
+- `actions/checkout` со стандартными сохраняемыми учётными данными (не задавайте `persist-credentials: false`), потому что action пушит с учётными данными, сохранёнными checkout.
+- Защита ветки может отклонить push (например, если для ветки обязательны pull request'ы или проверки статуса). Пушьте в незащищённую ветку или разрешите `github-actions[bot]` обходить защиту.
+- Добавьте группу `concurrency:` (как в примере), чтобы два запуска не пушили одновременно.
+
+Коммитится только результат storelingo: папки метаданных из `paths` (по умолчанию `fastlane/metadata/android` для Google Play и `fastlane/metadata` для App Store, только для настроенных магазинов) и `storelingo.lock.json`. Если сборка, `translate` или `check` упали либо запуск отменён, ничего не коммитится и не пушится. `commit: "true"` допускается только для событий `push`, `workflow_dispatch` и `schedule` и только в ветке; для любого другого события (например `pull_request` или `pull_request_target`) или тега action останавливается с ошибкой до сборки и перевода (для pull request'ов используйте `command: check`).
 
 Action никогда не пушит, если `commit` не равен `"true"`. При `commit: "false"` (по умолчанию) файлы меняются только в рабочей папке раннера.
 
@@ -71,7 +81,7 @@ jobs:
 | `openai-api-key` | пусто | Ключ OpenAI (`OPENAI_API_KEY`), только для `api.openai.com`. Передавайте секрет. |
 | `translator-api-key` | пусто | Ключ для другого OpenAI-совместимого хоста (`STORELINGO_TRANSLATOR_API_KEY`). Передавайте секрет. |
 | `translator-api-host` | пусто | Хост, которому разрешено получать запросы (`STORELINGO_TRANSLATOR_API_HOST`). |
-| `node-version` | `22` | Версия Node.js для сборки и запуска storelingo. |
+| `node-version` | `22` | Версия Node.js для сборки и запуска storelingo. Должна быть 22.13 или новее. Шаг `setup-node` внутри action меняет версию Node для последующих шагов того же job. |
 
 ## Выходные параметры
 
