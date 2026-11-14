@@ -13,4 +13,4 @@ Not blocking the v0.3 merge; one line each.
 
 ## Noted at the final re-review
 - M2 side effect: a locale present in app info localizations but missing on the live version, with only promotional_text changed and no editable version, shows as a pushable change; update() sends nothing yet push reports it as pushed. Filter such changes as skipped.
-- Spec §7.2: the four bullets added in the v0.3 fix wave are nested under the wrong parent bullet (cosmetic).
+- (done in v0.4) Spec §7.2 bullet nesting fixed.
