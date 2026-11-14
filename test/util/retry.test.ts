@@ -33,6 +33,21 @@ describe("withRetry", () => {
     expect(delays).toEqual([3000]);
   });
 
+  it.each([
+    { options: {}, expected: 60_000 },
+    { options: { maxRetryAfterMs: 2000 }, expected: 2000 },
+    { options: { maxRetryAfterMs: 0 }, expected: 0 },
+  ])("caps Retry-After delays with $options", async ({ options, expected }) => {
+    const delays: number[] = [];
+    const fn = vi.fn().mockRejectedValueOnce(new RetryableError("429", 3_600_000)).mockResolvedValue("ok");
+    await expect(withRetry(fn, {
+      ...options,
+      sleep: async (ms) => void delays.push(ms),
+    })).resolves.toBe("ok");
+    expect(delays).toEqual([expected]);
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
   it("gives up after the attempt limit", async () => {
     const fn = vi.fn().mockRejectedValue(new RetryableError("503"));
     await expect(withRetry(fn, { attempts: 3, sleep: async () => {} })).rejects.toThrow("503");
