@@ -1,0 +1,116 @@
+name: storelingo
+description: AI localization of Google Play and App Store listings (fastlane metadata)
+branding:
+  icon: globe
+  color: blue
+
+inputs:
+  command:
+    description: "translate, check or translate-and-check"
+    default: translate-and-check
+  working-directory:
+    description: Directory with storelingo.config.json
+    default: "."
+  args:
+    description: Extra arguments for translate (for example "--locale ru")
+    default: ""
+  commit:
+    description: 'Commit and push changed files ("true" or "false")'
+    default: "false"
+  commit-message:
+    description: Commit message used when commit is "true"
+    default: "chore: update store listing translations (storelingo)"
+  anthropic-api-key:
+    description: Anthropic API key (pass a secret)
+    default: ""
+  openai-api-key:
+    description: OpenAI API key (pass a secret)
+    default: ""
+  translator-api-key:
+    description: API key for another OpenAI-compatible host (pass a secret)
+    default: ""
+  translator-api-host:
+    description: Host allowed to receive translator requests
+    default: ""
+  node-version:
+    description: Node.js version
+    default: "22"
+
+outputs:
+  changed:
+    description: '"true" when the commit step committed changed files, otherwise "false"'
+    value: ${{ steps.commit.outputs.changed }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Validate command
+      shell: bash
+      env:
+        STORELINGO_COMMAND: ${{ inputs.command }}
+      run: |
+        case "$STORELINGO_COMMAND" in
+          translate|check|translate-and-check) ;;
+          *)
+            echo "::error::Unknown command '$STORELINGO_COMMAND'. Use translate, check or translate-and-check."
+            exit 1
+            ;;
+        esac
+
+    - name: Build storelingo
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --no-audit --no-fund && npm run build
+
+    - name: Translate
+      if: inputs.command == 'translate' || inputs.command == 'translate-and-check'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        STORELINGO_TRANSLATOR_API_KEY: ${{ inputs.translator-api-key }}
+        STORELINGO_TRANSLATOR_API_HOST: ${{ inputs.translator-api-host }}
+        STORELINGO_ARGS: ${{ inputs.args }}
+      run: |
+        for v in ANTHROPIC_API_KEY OPENAI_API_KEY STORELINGO_TRANSLATOR_API_KEY; do
+          if [ -n "${!v}" ]; then echo "::add-mask::${!v}"; fi
+        done
+        # Word-splitting of the args is intended; globbing is disabled.
+        set -f
+        node "$GITHUB_ACTION_PATH/dist/bin.js" translate $STORELINGO_ARGS
+
+    - name: Check
+      if: inputs.command == 'check' || inputs.command == 'translate-and-check'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: node "$GITHUB_ACTION_PATH/dist/bin.js" check
+
+    - name: Commit
+      id: commit
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        STORELINGO_COMMIT: ${{ inputs.commit }}
+        STORELINGO_COMMIT_MESSAGE: ${{ inputs.commit-message }}
+        BRANCH: ${{ github.head_ref || github.ref_name }}
+      run: |
+        if [ "$STORELINGO_COMMIT" != "true" ]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if [ -z "$(git status --porcelain -- .)" ]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        git config user.name "github-actions[bot]"
+        git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+        git add -A -- .
+        git commit -m "$STORELINGO_COMMIT_MESSAGE"
+        git push origin "HEAD:$BRANCH"
+        echo "changed=true" >> "$GITHUB_OUTPUT"

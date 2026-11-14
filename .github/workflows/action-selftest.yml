@@ -1,0 +1,37 @@
+name: Action self-test
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Start mock LLM server
+        run: |
+          node test/fixtures/mock-llm.mjs 8787 &
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8787/v1/chat/completions -d '{}' || true)
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 1
+          done
+          echo "mock server did not start" >&2
+          exit 1
+      - name: Run the action
+        uses: ./
+        with:
+          command: translate-and-check
+          working-directory: test/fixtures/action-project
+          commit: "false"
+      - name: Assert generated files
+        run: |
+          cd test/fixtures/action-project
+          test -s fastlane/metadata/android/ru-RU/title.txt
+          test -s fastlane/metadata/android/de-DE/title.txt
+          test -s storelingo.lock.json
