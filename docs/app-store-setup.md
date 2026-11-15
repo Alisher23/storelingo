@@ -48,7 +48,7 @@ $env:STORELINGO_ASC_KEY_ID = "ABC123DEFG"
 $env:STORELINGO_ASC_PRIVATE_KEY = "C:\path\AuthKey_ABC123DEFG.p8"
 ```
 
-The app goes into `storelingo.config.json` (`init` asks for the Apple ID):
+The app goes into `storelingo.config.json` (`init` asks for the Apple ID). `pull` and `push` need it; `translate` and `check` also work with `"appstore": {}` while the app is not in App Store Connect yet:
 
 ```json
 { "stores": { "appstore": { "appId": "1234567890" } } }

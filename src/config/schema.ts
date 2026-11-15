@@ -35,7 +35,8 @@ export const ConfigSchema = z.strictObject({
       play: z.strictObject({ packageName: z.string().min(1) }).optional(),
       appstore: z
         .strictObject({
-          appId: z.string().regex(/^\d+$/, "must be the numeric Apple ID of the app"),
+          // Needed only for pull and push: translate and check work before the app exists in App Store Connect.
+          appId: z.string().regex(/^\d+$/, "must be the numeric Apple ID of the app").optional(),
           platform: z.enum(["IOS", "MAC_OS", "TV_OS", "VISION_OS"]).default("IOS"),
         })
         .optional(),

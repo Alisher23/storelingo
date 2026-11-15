@@ -9,7 +9,7 @@ const answers: InitAnswers = {
   sourceLocale: "en-US",
   targetLocales: ["ru", "ky"],
   playPackageName: "com.example.app",
-  appstoreAppId: "123",
+  appstore: { appId: "123" },
   provider: "anthropic",
   context: "Prayer times app",
 };
@@ -19,6 +19,11 @@ describe("buildConfigJson", () => {
     const config = parseConfig(buildConfigJson(answers));
     expect(config.stores).toEqual({ play: { packageName: "com.example.app" }, appstore: { appId: "123", platform: "IOS" } });
     expect(config.translator.provider).toBe("anthropic");
+  });
+  it("enables the App Store without an appId when the app is not in App Store Connect yet", () => {
+    const json = buildConfigJson({ ...answers, appstore: {} });
+    expect(json.stores).toEqual({ play: { packageName: "com.example.app" }, appstore: {} });
+    expect(parseConfig(json).stores.appstore).toEqual({ platform: "IOS" });
   });
   it("does not write a $schema URL (no schema is published)", () => {
     expect(buildConfigJson(answers)).not.toHaveProperty("$schema");

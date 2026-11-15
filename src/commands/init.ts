@@ -11,7 +11,8 @@ export interface InitAnswers {
   sourceLocale: string;
   targetLocales: string[];
   playPackageName?: string;
-  appstoreAppId?: string;
+  /** App Store enabled; appId is left out when the app is not in App Store Connect yet. */
+  appstore?: { appId?: string };
   provider: "anthropic" | "openai-compatible";
   baseUrl?: string;
   model?: string;
@@ -28,7 +29,7 @@ const GITIGNORE_LINES = ["*.p8", "play-service-account*.json"];
 export function buildConfigJson(a: InitAnswers): Record<string, unknown> {
   const stores: Record<string, unknown> = {};
   if (a.playPackageName) stores.play = { packageName: a.playPackageName };
-  if (a.appstoreAppId) stores.appstore = { appId: a.appstoreAppId };
+  if (a.appstore) stores.appstore = a.appstore.appId ? { appId: a.appstore.appId } : {};
   const translator =
     a.provider === "anthropic"
       ? { provider: "anthropic", ...(a.model ? { model: a.model } : {}) }
@@ -112,16 +113,19 @@ export async function promptInitAnswers(): Promise<InitAnswers> {
   const playPackageName = stores.includes("play")
     ? await input({ message: "Google Play package name (e.g. com.example.app)", required: true })
     : undefined;
-  const appstoreAppId = stores.includes("appstore")
-    ? (
-        await input({
-          message: "App Store app ID (numbers from App Store Connect)",
-          required: true,
-          validate: (v) =>
-            /^[0-9]+$/.test(v.trim()) || "Enter the numeric Apple ID from App Store Connect (App Information)",
-        })
-      ).trim()
-    : undefined;
+  let appstore: InitAnswers["appstore"];
+  if (stores.includes("appstore")) {
+    const appId = (
+      await input({
+        message: "App Store app ID (numbers from App Store Connect; leave empty if the app is not there yet)",
+        validate: (v) =>
+          v.trim() === "" ||
+          /^[0-9]+$/.test(v.trim()) ||
+          "Enter the numeric Apple ID from App Store Connect (App Information), or leave it empty",
+      })
+    ).trim();
+    appstore = appId ? { appId } : {};
+  }
   const provider = await select({
     message: "Translator",
     choices: [
@@ -135,5 +139,5 @@ export async function promptInitAnswers(): Promise<InitAnswers> {
       : undefined;
   const model = provider === "openai-compatible" ? await input({ message: "Model name", required: true }) : undefined;
   const context = await input({ message: "One sentence about your app (helps the translator)", default: "" });
-  return { sourceLocale, targetLocales, playPackageName, appstoreAppId, provider, baseUrl, model, context };
+  return { sourceLocale, targetLocales, playPackageName, appstore, provider, baseUrl, model, context };
 }

@@ -48,7 +48,7 @@ $env:STORELINGO_ASC_KEY_ID = "ABC123DEFG"
 $env:STORELINGO_ASC_PRIVATE_KEY = "C:\path\AuthKey_ABC123DEFG.p8"
 ```
 
-Приложение указывается в `storelingo.config.json` (`init` спрашивает Apple ID):
+Приложение указывается в `storelingo.config.json` (`init` спрашивает Apple ID). Он нужен для `pull` и `push`; `translate` и `check` работают и с `"appstore": {}`, пока приложения ещё нет в App Store Connect:
 
 ```json
 { "stores": { "appstore": { "appId": "1234567890" } } }

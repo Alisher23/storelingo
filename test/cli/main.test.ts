@@ -401,6 +401,29 @@ describe("pull/push", () => {
     expect(s.err.join("\n")).toContain("error [E_IN_REVIEW]");
   });
 
+  for (const command of ["pull", "push"]) {
+    it(`${command} without stores.appstore.appId is a config error before any network call`, async () => {
+      const both = { ...config, stores: { play: { packageName: "com.example" }, appstore: {} } };
+      const { cwd } = await makeProject({ "storelingo.config.json": JSON.stringify(both) }, both);
+      const s = storeDeps(cwd);
+      const args = command === "push" ? ["push", "--yes"] : ["pull"];
+      expect(await run(s.d, ...args)).toBe(2);
+      expect(s.err.join("\n")).toContain("stores.appstore.appId is required for pull and push");
+      expect(s.makeStore).not.toHaveBeenCalled();
+    });
+  }
+
+  it("pull --store play works without stores.appstore.appId", async () => {
+    const both = { ...config, stores: { play: { packageName: "com.example" }, appstore: {} } };
+    const { cwd } = await makeProject({ "storelingo.config.json": JSON.stringify(both) }, both);
+    const fake = fakeStore(remoteListings);
+    const makeStore = vi.fn(async () => fake.client);
+    const s = deps(cwd, { makeStore, isTTY: false });
+    expect(await run(s.d, "pull", "--store", "play")).toBe(0);
+    expect(makeStore).toHaveBeenCalledTimes(1);
+    expect(makeStore).toHaveBeenCalledWith("play", expect.anything(), expect.anything());
+  });
+
   it("push --store play without stores.play is a config error", async () => {
     const appOnly = { ...config, stores: { appstore: { appId: "1" } } };
     const { cwd } = await makeProject({ "storelingo.config.json": JSON.stringify(appOnly) }, appOnly);
