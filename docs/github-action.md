@@ -4,7 +4,7 @@ Run storelingo in CI: translate your store listings when the source texts change
 
 [Русская версия](github-action.ru.md)
 
-Pin a release tag such as `Alisher23/storelingo@v0.5.0` (or a full commit SHA for maximum safety). `@main` follows the latest unreleased code.
+Pin a release tag such as `Alisher23/storelingo@v0.5.1` (or a full commit SHA for maximum safety). `@main` follows the latest unreleased code.
 
 ## Quick start: translate on push to main
 
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@v0.5.0
+      - uses: Alisher23/storelingo@v0.5.1
         with:
           command: translate-and-check
           commit: "true"
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@v0.5.0
+      - uses: Alisher23/storelingo@v0.5.1
         with:
           command: check
 ```

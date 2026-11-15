@@ -1,6 +1,6 @@
 {
   "name": "storelingo",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "AI localization for Google Play and App Store listings. Reads and writes fastlane metadata.",
   "homepage": "https://github.com/Alisher23/storelingo#readme",
   "bugs": {

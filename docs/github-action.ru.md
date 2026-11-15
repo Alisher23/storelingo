@@ -4,7 +4,7 @@
 
 [English version](github-action.md)
 
-Закрепляйте релизный тег, например `Alisher23/storelingo@v0.5.0` (или полный SHA коммита для максимальной надёжности). `@main` указывает на последний невыпущенный код.
+Закрепляйте релизный тег, например `Alisher23/storelingo@v0.5.1` (или полный SHA коммита для максимальной надёжности). `@main` указывает на последний невыпущенный код.
 
 ## Быстрый старт: перевод при push в main
 
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@v0.5.0
+      - uses: Alisher23/storelingo@v0.5.1
         with:
           command: translate-and-check
           commit: "true"
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Alisher23/storelingo@v0.5.0
+      - uses: Alisher23/storelingo@v0.5.1
         with:
           command: check
 ```
