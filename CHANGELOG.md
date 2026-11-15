@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 — 2026-11-15
+
+- First release on npm: `npx storelingo` works without building from source.
+- Releases are published from GitHub Actions with npm trusted publishing and provenance (`docs/releasing.md`).
+- `npm run build` starts from a clean `dist/`, so files of removed modules never end up in the package.
+- The package includes `CHANGELOG.md`.
+
 ## 0.4.1 — 2026-11-14
 
 - GitHub Action: the commit step treats config paths literally (`GIT_LITERAL_PATHSPECS`) and commits only storelingo output even if an earlier workflow step staged other files (reported by the Codex review on #11).

@@ -2,7 +2,9 @@
 
 AI localization for your Google Play and App Store listings. Works with fastlane metadata — no fastlane required.
 
-> Status: v0.3, not yet published to npm. The commands below show the intended usage (`npx storelingo`). Until the first release, build from source (see [CONTRIBUTING.md](https://github.com/Alisher23/storelingo/blob/main/CONTRIBUTING.md)).
+[![npm](https://img.shields.io/npm/v/storelingo)](https://www.npmjs.com/package/storelingo) [![CI](https://github.com/Alisher23/storelingo/actions/workflows/ci.yml/badge.svg)](https://github.com/Alisher23/storelingo/actions/workflows/ci.yml)
+
+> Status: early. Covered by automated tests on Windows, macOS and Linux, but not yet run against many real store accounts. Start with `pull` and `push --dry-run`, and [open an issue](https://github.com/Alisher23/storelingo/issues) if anything looks off.
 
 [Русская версия](README.ru.md)
 
@@ -26,7 +28,7 @@ npx storelingo check
 
 `init` asks a few questions and creates `storelingo.config.json` plus the fastlane folders. Put your source-language texts into those folders, then run `translate`. Review the result with `git diff`, and commit `storelingo.lock.json` together with the translations.
 
-Requires Node.js >= 22.13.
+Requires Node.js >= 22.13. To pin the version for your team, add storelingo to the project with `npm install --save-dev storelingo`. To run it in CI, see the [GitHub Action](https://github.com/Alisher23/storelingo/blob/main/docs/github-action.md).
 
 ## Folder layout
 

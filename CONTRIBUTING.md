@@ -43,3 +43,7 @@ Use a short imperative subject with a prefix: `feat:`, `fix:`, `docs:`, `chore:`
 ## Secrets
 
 Never commit API keys, Play service-account JSON files, or App Store Connect `.p8` keys. Remove keys from logs and issue reports before pasting them.
+
+## Releases
+
+Maintainers publish to npm by pushing a version tag; see [docs/releasing.md](docs/releasing.md).

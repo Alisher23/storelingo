@@ -2,7 +2,9 @@
 
 ИИ-локализация карточек Google Play и App Store. Работает с метаданными fastlane — сам fastlane не нужен.
 
-> Статус: v0.3, в npm пока не опубликован. Команды ниже показывают планируемое использование (`npx storelingo`). До первого релиза собирайте из исходников (см. [CONTRIBUTING.md](https://github.com/Alisher23/storelingo/blob/main/CONTRIBUTING.md)).
+[![npm](https://img.shields.io/npm/v/storelingo)](https://www.npmjs.com/package/storelingo) [![CI](https://github.com/Alisher23/storelingo/actions/workflows/ci.yml/badge.svg)](https://github.com/Alisher23/storelingo/actions/workflows/ci.yml)
+
+> Статус: ранняя версия. Покрыт автотестами на Windows, macOS и Linux, но ещё мало проверялся на реальных аккаунтах магазинов. Начните с `pull` и `push --dry-run`, а если что-то не так — [откройте issue](https://github.com/Alisher23/storelingo/issues).
 
 [English version](README.md)
 
@@ -26,7 +28,7 @@ npx storelingo check
 
 `init` задаёт несколько вопросов и создаёт `storelingo.config.json` и папки fastlane. Положите исходные тексты в эти папки и запустите `translate`. Проверьте результат через `git diff` и закоммитьте `storelingo.lock.json` вместе с переводами.
 
-Требуется Node.js >= 22.13.
+Требуется Node.js >= 22.13. Чтобы зафиксировать версию для команды, добавьте storelingo в проект: `npm install --save-dev storelingo`. Для запуска в CI есть [GitHub Action](https://github.com/Alisher23/storelingo/blob/main/docs/github-action.ru.md).
 
 ## Структура папок
 
