@@ -18,7 +18,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
+          # No registry-url here: it writes an _authToken entry to .npmrc, and
+          # npm then tries token auth instead of OIDC (actions/setup-node#1551).
+          # npm uses registry.npmjs.org by default.
       # Trusted publishing needs npm 11.5.1 or newer.
       - run: npm install -g npm@^11.5.1
       - name: Check that the tag matches package.json
