@@ -80,50 +80,59 @@ export function createTokenProvider(opts: {
   const now = opts.now ?? (() => Date.now());
   let cached: { token: string; expiresAt: number } | undefined;
 
+  let inFlight: Promise<string> | undefined;
+
+  async function refreshToken(): Promise<string> {
+    let key;
+    try {
+      key = await importPKCS8(opts.account.privateKey, "RS256");
+    } catch {
+      throw new StorelingoError("E_CONFIG", "The service account private_key is not a valid RSA key");
+    }
+    const iat = Math.floor(now() / 1000);
+    const assertion = await new SignJWT({ scope: PLAY_SCOPE })
+      .setProtectedHeader({ alg: "RS256", typ: "JWT" })
+      .setIssuer(opts.account.clientEmail)
+      .setAudience(GOOGLE_TOKEN_URL)
+      .setIssuedAt(iat)
+      .setExpirationTime(iat + TOKEN_LIFETIME_S)
+      .sign(key);
+
+    let res: Response;
+    try {
+      res = await fetchImpl(GOOGLE_TOKEN_URL, {
+        method: "POST",
+        body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
+        redirect: "error",
+        signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
+      });
+    } catch (err) {
+      throw new StorelingoError(
+        "E_AUTH_PLAY",
+        `Could not reach Google's token endpoint: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    const body = (await res.json().catch(() => ({}))) as TokenBody;
+    if (!res.ok || !body.access_token) {
+      const reason = [body.error, body.error_description].filter(Boolean).join(": ") || `HTTP ${res.status}`;
+      throw new StorelingoError(
+        "E_AUTH_PLAY",
+        `Google rejected the service account (${reason})`,
+        "Check the key file, that the service account is enabled, and that the Google Play Android Developer API is enabled for its Google Cloud project.",
+      );
+    }
+    const expiresIn = typeof body.expires_in === "number" && Number.isFinite(body.expires_in) && body.expires_in > 0
+      ? body.expires_in
+      : TOKEN_LIFETIME_S;
+    cached = { token: body.access_token, expiresAt: now() + expiresIn * 1000 };
+    return cached.token;
+  }
+
   return {
     async getToken() {
       if (cached && now() < cached.expiresAt - REFRESH_MARGIN_MS) return cached.token;
-
-      let key;
-      try {
-        key = await importPKCS8(opts.account.privateKey, "RS256");
-      } catch {
-        throw new StorelingoError("E_CONFIG", "The service account private_key is not a valid RSA key");
-      }
-      const iat = Math.floor(now() / 1000);
-      const assertion = await new SignJWT({ scope: PLAY_SCOPE })
-        .setProtectedHeader({ alg: "RS256", typ: "JWT" })
-        .setIssuer(opts.account.clientEmail)
-        .setAudience(GOOGLE_TOKEN_URL)
-        .setIssuedAt(iat)
-        .setExpirationTime(iat + TOKEN_LIFETIME_S)
-        .sign(key);
-
-      let res: Response;
-      try {
-        res = await fetchImpl(GOOGLE_TOKEN_URL, {
-          method: "POST",
-          body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
-          redirect: "error",
-          signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
-        });
-      } catch (err) {
-        throw new StorelingoError(
-          "E_AUTH_PLAY",
-          `Could not reach Google's token endpoint: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-      const body = (await res.json().catch(() => ({}))) as TokenBody;
-      if (!res.ok || !body.access_token) {
-        const reason = [body.error, body.error_description].filter(Boolean).join(": ") || `HTTP ${res.status}`;
-        throw new StorelingoError(
-          "E_AUTH_PLAY",
-          `Google rejected the service account (${reason})`,
-          "Check the key file, that the service account is enabled, and that the Google Play Android Developer API is enabled for its Google Cloud project.",
-        );
-      }
-      cached = { token: body.access_token, expiresAt: now() + (body.expires_in ?? TOKEN_LIFETIME_S) * 1000 };
-      return cached.token;
+      inFlight ??= refreshToken().finally(() => { inFlight = undefined; });
+      return inFlight;
     },
   };
 }

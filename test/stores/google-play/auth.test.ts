@@ -101,6 +101,67 @@ describe("createTokenProvider", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it("shares one refresh for concurrent requests on an empty and expired cache", async () => {
+    let now = 1_800_000_000_000;
+    let refreshes = 0;
+    const fetchImpl = vi.fn(async () => tokenResponse(`t${++refreshes}`));
+    const provider = createTokenProvider({ account, fetchImpl, now: () => now });
+    expect(await Promise.all(Array.from({ length: 5 }, () => provider.getToken())))
+      .toEqual(Array(5).fill("t1"));
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    now += 3_600_000;
+    expect(await Promise.all(Array.from({ length: 5 }, () => provider.getToken())))
+      .toEqual(Array(5).fill("t2"));
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows another refresh after a shared failure", async () => {
+    let offline = true;
+    const fetchImpl = vi.fn(async () => {
+      if (offline) throw new Error("offline");
+      return tokenResponse("recovered");
+    });
+    const provider = createTokenProvider({ account, fetchImpl });
+    const results = await Promise.allSettled(Array.from({ length: 3 }, () => provider.getToken()));
+    expect(results.every((r) => r.status === "rejected")).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    offline = false;
+    expect(await provider.getToken()).toBe("recovered");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([undefined, null, "120", true, {}, [], 0, -1, NaN, Infinity, -Infinity])(
+    "falls back to one hour for invalid expires_in %s",
+    async (expiresIn) => {
+      let now = 1_800_000_000_000;
+      const fetchImpl = vi.fn().mockImplementation(async () => ({
+        ok: true,
+        json: async () => ({ access_token: "token", expires_in: expiresIn }),
+      }));
+      const provider = createTokenProvider({ account, fetchImpl, now: () => now });
+      expect(await provider.getToken()).toBe("token");
+      now += 3_000_000;
+      expect(await provider.getToken()).toBe("token");
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      now += 560_000;
+      await provider.getToken();
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("honours a positive numeric expires_in", async () => {
+    let now = 1_800_000_000_000;
+    const fetchImpl = vi.fn().mockImplementation(async () => tokenResponse("token", 120));
+    const provider = createTokenProvider({ account, fetchImpl, now: () => now });
+    await provider.getToken();
+    now += 59_000;
+    await provider.getToken();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    now += 2_000;
+    await provider.getToken();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
   it("maps a rejected key to E_AUTH_PLAY without leaking the assertion", async () => {
     const fetchImpl = vi
       .fn()
