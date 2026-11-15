@@ -18,15 +18,17 @@ vi.mock("@inquirer/prompts", () => ({
 }));
 
 describe("promptInitAnswers", () => {
-  it("only accepts a numeric App Store app ID", async () => {
+  it("accepts a numeric App Store app ID or an empty one", async () => {
     const { promptInitAnswers } = await import("../../src/commands/init.js");
     const answers = await promptInitAnswers();
-    expect(answers.appstoreAppId).toBe("1234567890");
+    expect(answers.appstore).toEqual({ appId: "1234567890" });
     const prompt = inputs.find((i) => i.message.startsWith("App Store app ID"));
     expect(prompt?.validate).toBeTypeOf("function");
     expect(prompt!.validate!(" 1234567890 ")).toBe(true);
     expect(typeof prompt!.validate!("com.example.app")).toBe("string");
     expect(typeof prompt!.validate!("12a")).toBe("string");
-    expect(typeof prompt!.validate!("")).toBe("string");
+    // Empty: the app is not in App Store Connect yet; appId is added later for pull and push.
+    expect(prompt!.validate!("")).toBe(true);
+    expect(prompt!.validate!("  ")).toBe(true);
   });
 });

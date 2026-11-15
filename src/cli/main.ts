@@ -49,11 +49,14 @@ const pkg = createRequire(import.meta.url)("../../package.json") as { version: s
 
 const defaultMakeStore = async (store: StoreId, config: Config, env: NodeJS.ProcessEnv): Promise<StoreClient> => {
   if (store === "appstore") {
-    if (!config.stores.appstore) throw new StorelingoError("E_CONFIG", "stores.appstore is not configured");
+    const appId = config.stores.appstore?.appId;
+    if (!config.stores.appstore || appId === undefined) {
+      throw new StorelingoError("E_CONFIG", "stores.appstore.appId is required for pull and push");
+    }
     const key = await loadAscKey(env);
     const tokens = createAscTokenProvider({ key });
     const api = createAscApi({ getToken: () => tokens.getToken() });
-    return createAppStoreStore(api, { appId: config.stores.appstore.appId, platform: config.stores.appstore.platform });
+    return createAppStoreStore(api, { appId, platform: config.stores.appstore.platform });
   }
   if (!config.stores.play) throw new StorelingoError("E_CONFIG", "stores.play is not configured");
   const account = await loadServiceAccount(env);
@@ -64,6 +67,18 @@ const defaultMakeStore = async (store: StoreId, config: Config, env: NodeJS.Proc
 
 /** Validated before any network call; without --store every configured store runs (play, then appstore). */
 function selectStores(option: string | undefined, config: Config): StoreId[] {
+  const stores = selectConfiguredStores(option, config);
+  if (stores.includes("appstore") && config.stores.appstore?.appId === undefined) {
+    throw new StorelingoError(
+      "E_CONFIG",
+      "stores.appstore.appId is required for pull and push",
+      "Add the numeric Apple ID from App Store Connect (App Information) as stores.appstore.appId in storelingo.config.json, or use --store play.",
+    );
+  }
+  return stores;
+}
+
+function selectConfiguredStores(option: string | undefined, config: Config): StoreId[] {
   if (option === undefined) return configuredStores(config);
   if (option !== "play" && option !== "appstore") {
     throw new StorelingoError("E_USAGE", `--store must be play or appstore, got ${JSON.stringify(option)}`);

@@ -96,7 +96,8 @@ fastlane/metadata/                  # App Store (fastlane deliver)
 | `sourceLocale` | да | Код локали storelingo для исходных текстов, например `en-US`. |
 | `targetLocales` | да | Непустой список кодов локалей storelingo, на которые переводить, без повторов. |
 | `stores.play.packageName` | нужен хотя бы один магазин | Включает Google Play. |
-| `stores.appstore.appId` | нужен хотя бы один магазин | Включает App Store. Числовой Apple ID приложения. |
+| `stores.appstore` | нужен хотя бы один магазин | Включает App Store. Для `translate` и `check` достаточно `{}`, даже если приложения ещё нет в App Store Connect. |
+| `stores.appstore.appId` | для `pull` / `push` | Числовой Apple ID приложения (App Store Connect → App Information). |
 | `stores.appstore.platform` | нет (по умолчанию `IOS`) | `IOS`, `MAC_OS`, `TV_OS` или `VISION_OS`: платформа, с версией которой работает storelingo. |
 | `translator.provider` | да | `anthropic` или `openai-compatible`. |
 | `translator.model` | `anthropic`: нет (по умолчанию `claude-opus-5-5`); `openai-compatible`: да | Название модели. |

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `stores.appstore.appId` is needed only for `pull` and `push`. `translate` and `check` work with `"appstore": {}` before the app exists in App Store Connect, and `init` accepts an empty Apple ID. `pull` / `push` without it stop with a clear `E_CONFIG` before any network call (found while localizing a real app).
+
 ## 0.5.0 — 2026-11-15
 
 - First release on npm: `npx storelingo` works without building from source.

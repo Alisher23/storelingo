@@ -96,7 +96,8 @@ For Google Play, the newest changelog (highest version code) of the source local
 | `sourceLocale` | yes | storelingo locale code of your source texts, e.g. `en-US`. |
 | `targetLocales` | yes | Non-empty list of storelingo locale codes to translate into, without duplicates. |
 | `stores.play.packageName` | one store required | Enables Google Play. |
-| `stores.appstore.appId` | one store required | Enables the App Store. The numeric Apple ID of the app. |
+| `stores.appstore` | one store required | Enables the App Store. `{}` is enough for `translate` and `check`, even before the app exists in App Store Connect. |
+| `stores.appstore.appId` | for `pull` / `push` | The numeric Apple ID of the app (App Store Connect → App Information). |
 | `stores.appstore.platform` | no (default `IOS`) | `IOS`, `MAC_OS`, `TV_OS` or `VISION_OS`: the platform whose version storelingo works with. |
 | `translator.provider` | yes | `anthropic` or `openai-compatible`. |
 | `translator.model` | `anthropic`: no (default `claude-opus-5-5`); `openai-compatible`: yes | Model name. |
