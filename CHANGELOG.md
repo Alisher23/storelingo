@@ -6,6 +6,7 @@
 - Releases are published from GitHub Actions with npm trusted publishing and provenance (`docs/releasing.md`).
 - `npm run build` starts from a clean `dist/`, so files of removed modules never end up in the package.
 - The package includes `CHANGELOG.md`.
+- Google Play: concurrent requests share one token refresh, a failed refresh can be retried, and an invalid `expires_in` falls back to one hour (thanks @yonash24, #13).
 
 ## 0.4.1 — 2026-11-14
 
