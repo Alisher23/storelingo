@@ -21,6 +21,8 @@ Trusted publishing can be configured only for a package that already exists on n
    - Repository: `storelingo`
    - Workflow filename: `release.yml`
    - Environment: leave empty
+
+   Or from the terminal (npm 11.10 or newer): `npm trust github storelingo --file release.yml --repo Alisher23/storelingo --allow-publish --yes`.
 4. On the same page, under **Publishing access**, choose "Require two-factor authentication and disallow tokens". Trusted publishing keeps working.
 5. Push the tag for the version you just published (for example `git tag -a v0.5.0 -m v0.5.0 && git push origin v0.5.0`). The workflow sees that this version is already on npm and stops without publishing.
 

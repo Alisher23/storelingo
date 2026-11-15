@@ -44,4 +44,13 @@ jobs:
       - if: steps.version.outputs.published == 'false'
         run: npm run lint && npm run typecheck && npm test
       - if: steps.version.outputs.published == 'false'
-        run: npm publish
+        run: |
+          # A version published by hand moments ago may not be visible to `npm view` yet.
+          set -o pipefail
+          if ! npm publish 2>&1 | tee publish.log; then
+            if grep -q "cannot publish over the previously published versions" publish.log; then
+              echo "::notice::This version is already on npm, nothing to publish."
+              exit 0
+            fi
+            exit 1
+          fi
