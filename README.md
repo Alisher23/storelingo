@@ -51,7 +51,7 @@ App Store keywords are chosen for search, not translated. The Russian `нама�
 namaz,adhan,azan,athan,mosque,dua,tasbih,islamic,ramadan,muslim,tajweed,kyrgyzstan,bishkek,osh
 ```
 
-Spelling variants people actually search for (`adhan`, `azan`, `athan`) are included, while "prayer", "quran" and "qibla" are left out because they are already in the English name and subtitle ("Salah, Quran & Qibla"), which Apple indexes anyway.
+Spelling variants people actually search for (`adhan`, `azan`, `athan`) are included, while "prayer", "quran" and "qibla" are left out because they are already in the English name ("…: Prayer Times") and subtitle ("Salah, Quran & Qibla"), which Apple indexes anyway.
 
 ```
 $ npx storelingo translate

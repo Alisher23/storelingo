@@ -51,7 +51,7 @@ npx storelingo check
 namaz,adhan,azan,athan,mosque,dua,tasbih,islamic,ramadan,muslim,tajweed,kyrgyzstan,bishkek,osh
 ```
 
-Сюда вошли варианты написания, которые люди действительно ищут (`adhan`, `azan`, `athan`), а слов prayer, quran и qibla нет: они уже есть в английском названии и подзаголовке («Salah, Quran & Qibla»), которые Apple и так учитывает в поиске.
+Сюда вошли варианты написания, которые люди действительно ищут (`adhan`, `azan`, `athan`), а слов prayer, quran и qibla нет: они уже есть в английском названии («…: Prayer Times») и подзаголовке («Salah, Quran & Qibla»), которые Apple и так учитывает в поиске.
 
 ```
 $ npx storelingo translate
