@@ -30,6 +30,36 @@ npx storelingo check
 
 Требуется Node.js >= 22.13. Чтобы зафиксировать версию для команды, добавьте storelingo в проект: `npm install --save-dev storelingo`. Для запуска в CI есть [GitHub Action](https://github.com/Alisher23/storelingo/blob/main/docs/github-action.ru.md).
 
+## Пример
+
+Настоящий запуск на приложении с временем намаза для Кыргызстана: страница написана на русском и переведена на кыргызский, узбекский и английский (14 полей, около 10 000 токенов).
+
+Короткое описание Google Play, лимит 80 символов:
+
+| Локаль | Текст | Длина |
+|---|---|---|
+| `ru-RU` (исходник) | Время намаза по ДУМК, виджеты, экран блокировки, Коран с таджвидом и кыбла | 74 |
+| `ky-KG` | КМДБ боюнча намаз убактысы, виджеттер, кулпу экраны, тажвиддүү Куран, кыбыла | 76 |
+| `uz` | QMDI boʻyicha namoz vaqtlari, vidjetlar, qulf ekrani, tajvidli Qurʼon va qibla | 78 |
+| `en-US` | Muftiyat prayer times, widgets, lock screen, Quran with tajweed & qibla | 71 |
+
+Название организации стало принятой в каждом языке аббревиатурой (ДУМК → КМДБ → QMDI → Muftiyat), и каждая строка уложилась в лимит.
+
+Ключевые слова App Store подбираются под поиск, а не переводятся. Русские `намаз,азан,коран,кыбла,…` превратились в:
+
+```
+namaz,adhan,azan,athan,mosque,dua,tasbih,islamic,ramadan,muslim,tajweed,kyrgyzstan,bishkek,osh
+```
+
+Сюда вошли варианты написания, которые люди действительно ищут (`adhan`, `azan`, `athan`), а слов prayer, quran и qibla нет: они уже есть в английском названии («…: Prayer Times») и подзаголовке («Salah, Quran & Qibla»), которые Apple и так учитывает в поиске.
+
+```
+$ npx storelingo translate
+warning: App Store does not support ky; skipped
+warning: App Store does not support uz; skipped
+Translated 14 fields; unchanged 0; edited manually 0; unsupported locales 2; failed 0. Tokens: 5725 in / 4656 out.
+```
+
 ## Структура папок
 
 storelingo читает и пишет стандартные деревья fastlane (пути меняются через `paths`):
